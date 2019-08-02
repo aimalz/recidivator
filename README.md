@@ -1,2 +1,2 @@
 # fallen-angel
-Making a mock catalog of galaxies that satisfies the needs of photo-zs and cosmology
+HOD without halos: making mock galaxy catalogs for photo-zs and cosmology
