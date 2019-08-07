@@ -1,2 +1,3 @@
-# fallen-angel
+# recidivator
+
 HOD without halos: making mock galaxy catalogs for photo-zs and cosmology
