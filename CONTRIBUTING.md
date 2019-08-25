@@ -12,3 +12,7 @@ A single issue can have multiple assignees, so it's best to also leave a comment
 Some issues are _Epic_ meaning they're a place to collect lots of small issues that break apart a larger problem.
 It's possible to have a branch for the Epic issue, into which branches from the smaller issues are merged before the Epic branch is merged into the `master` branch.
 If the Epic branch isn't protected, PRs aren't necessary, but they might be useful, particularly if multiple people are working on the Epic issue.
+
+To review a pull request, please make sure that Jupyter notebooks have cleared outputs and that code actually runs.
+When approving a pull request and merging a branch into `master`, close the issue it corresponds to.
+In most cases, it's appropriate to delete the branch when closing an issue as well.
