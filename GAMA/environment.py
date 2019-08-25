@@ -32,9 +32,7 @@ def nn_finder(data, point, radius):
     The whole things runs in around 0.7 seconds per point, with a dataset of
     100,000 coordinates. For a speed-up, it is embarrassingly parallelizable.
     It should also be tested on the real dataset to make sure that everything
-    works as intended. Batteries not included.
-             
-           
+    works as intended. Batteries not included.  
     """
     # Specify the cutoff values for the pre-cutting
     x_cut_lower = point[0] - radius
@@ -53,7 +51,7 @@ def nn_finder(data, point, radius):
                             for i in range(0, len(cut_data))])
     radius_data = cut_data[np.where(distances <= radius)[0]]
     # Return the extracted points
-    
+    return radius_data
 
 def haversine(point_1, 
               point_2):
@@ -104,5 +102,3 @@ def haversine(point_1,
     haversine_distance = np.multiply(np.multiply(2, circle_radius), step_4)
     # Return the computed haversine distance for the coordinates
     return haversine_distance
-    return radius_data
-    #return distances
