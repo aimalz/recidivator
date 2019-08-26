@@ -7,7 +7,7 @@ N = 200 # Grid size
 x <- seq(0,20,length.out = N) # 20 is arbitrary, box size
 y <- seq(0,20,length.out = N)
 
-###  Different kernels
+###  Different 2D kernels, i.e. stationary functions of the distance between pairs of points
 se_kernel <- function(x, y, sigma = 1, length = 1) {
   sigma^2 * exp(- (x - y)^2 / (2 * length^2))
 }
@@ -32,6 +32,13 @@ matern_kernel <- function(x, y, nu = 0.5, sigma = 10, l = 1) {
   } else {
     sigma^2 * (1 + sqrt(5)*d/l + 5*d^2 / (3*l^2)) * exp(-sqrt(5)*d/l)
   }
+}
+
+### Extend to 3D kernels, i.e. stationary functions of the distance between trios of points
+z <- seq(0,20,length.out = N)
+
+rbf_kernel <- function(x, y, z, sigma1 = 1, sigma2 = 1, length1 = 1, length2 = 1) {
+  sqrt((sigma1^2 * exp(- (x - y)^2 / (2 * length1^2)))^2 + (sigma^2 * exp(- (y - z)^2 / (2 * length2^2)))^2 )
 }
 
 ### Estimate covariance matrix for a given kernel choice
