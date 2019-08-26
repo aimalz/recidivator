@@ -128,11 +128,12 @@ output = pd.DataFrame(phot_measures)
 
 # Save the output to the CSV file. Later we add to SpecObj
 # This one was used in production, but putting the right way to save below.
-# output.to_csv('photo.csv')
+output.to_csv('photo.csv')
 
-output["CATAID"] = pd.to_numeric(output["CATAID"])
-output.index = output['CATAID']
+## These don't work for some reason
+#output["CATAID"] = pd.to_numeric(output["CATAID"])
+#output.index = output['CATAID']
 
-new = df.merge(output, on='CATAID')
-new.to_csv('SpecObjPhot.csv')
+#new = df.merge(output, on='CATAID')
+#new.to_csv('SpecObjPhot.csv')
 
