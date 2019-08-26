@@ -95,22 +95,18 @@ def helper(n):
                 error = error/1e-17
 
             # Now I need to clean out the nans from the flux.
-            nonan_flux = np.array([x for x in spectrum if not np.isnan(x)])
-            
-            nonan_wv = []
-            nonan_err = []
-            for w, f, e in zip(wv, spectrum, error):
-                if ~np.isnan(f):
-                    nonan_wv.append(w)
-                    nonan_err.append(e)
-                else:
-                    print('spectrum was a nan')
-            nonan_wv = np.array(nonan_wv)
-            nonan_err = np.array(nonan_err)
+            wh_no_err, = np.where(np.isinf(error) | np.isnan(error))
+            wh_no_flux, = np.where(np.isinf(spectrum) | np.isnan(spectrum))
+
+            error[wh_no_err] = 0.0
+            spectrum[wh_no_err] = 0.0
+
+            error[wh_no_flux] = 0.0
+            spectrum[wh_no_flux] = 0.0
 
             for i, b in enumerate(bandpasses):
                 try:
-                    mag, mag_err = photometry(nonan_wv, nonan_flux*1e-17, nonan_err*1e-17, b)
+                    mag, mag_err = photometry(wv, spectrum*1e-17, error*1e-17, b)
                     res.append(mag)
                     res.append(mag_err)
                 except:
