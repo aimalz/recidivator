@@ -4,7 +4,7 @@ import treecorr
 
 z_str = '0.042'
 fn_base = 'xv'
-fn_index = 27
+fn_index = 0
 fn_ext = '.dat'
 fn = z_str + fn_base + str(fn_index) + fn_ext
 
@@ -16,4 +16,4 @@ with open(fn, 'rb') as f1:
 
 loc_data = pd.DataFrame(data=raw_data[2:], columns=['x', 'y', 'z', 'vx', 'vy', 'vz'])
 
-loc_data.to_csv('for_treecorr.csv', columns=['x', 'y'])
+loc_data.to_csv('for_treecorr.csv', header=False, index=False, sep=' ', columns=['x', 'y'])
