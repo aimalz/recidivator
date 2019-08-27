@@ -124,7 +124,7 @@ y_units: arcsec
 #min_sep: 1.
 #max_sep: 300.
 #bin_size: 0.10
-n_bins: 100
+nbins: 100
 
 # sep_units specifies the units to use for min_sep and max_sep.
 # It is also the units of R in the output file.
