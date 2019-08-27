@@ -1,5 +1,5 @@
 # This file lists the most common parameters that you might want to use in a
-# configuration file for use with the corr2 program.  (And eventually the 
+# configuration file for use with the corr2 program.  (And eventually the
 # other corr varieties...)  See the wiki page:
 #
 # https://github.com/rmjarvis/TreeCorr/wiki/Configuration-Parameters
@@ -10,7 +10,7 @@
 #
 # corr2 config.yaml
 #
-# You can also specify parameters on the command line after the name of 
+# You can also specify parameters on the command line after the name of
 # the configuration file. e.g.:
 #
 # corr2 config.yaml file_name=file1.dat ee_file_name=file1.out
@@ -27,7 +27,7 @@
 # The file with the data to be correlated.
 file_name: for_treecorr.csv
 
-# You an also specify a second file, in which case the program calculates a 
+# You an also specify a second file, in which case the program calculates a
 # cross-correlation between the two sets of values.
 #file_name2: file2.dat
 
@@ -44,7 +44,7 @@ file_name: for_treecorr.csv
 # that are drawn from the same mask and observing conditions, but have no
 # cosmological correlations.  There can be more than one of these if desired
 # to help beat down the noise.  Or equivalently, they can have more objects
-# than the real data, in which case the overall number density is scaled 
+# than the real data, in which case the overall number density is scaled
 # appropriately.
 #rand_file_name: [rand1.dat, rand2.dat, rand3.dat]
 
@@ -62,7 +62,7 @@ file_type: ASCII
 # Columns are specified starting with 1 being the first column.  (Not 0.)
 x_col: 1
 y_col: 2
-z_col: 3
+#z_col: 3
 #g1_col: 3
 #g2_col: 4
 
@@ -89,13 +89,13 @@ y_units: arcsec
 #g2_col: GAMMA2
 #w_col: WEIGHT
 
-# If the first and second catalog (file_name and file_name2) have different column 
+# If the first and second catalog (file_name and file_name2) have different column
 # names or numbers, the *_col parameters may be lists.  e.g. if they use different names
 # for the RA and DEC columns:
 #ra_col: [ra, ALPHA_J2000]
 #dec_col: [dec, DELTA_J2000]
 #
-# You can also indicate that one or the other does not have some information by setting the 
+# You can also indicate that one or the other does not have some information by setting the
 # name or number to 0.  e.g. for NG correlations, the lenses don't need to have shear values:
 #g1_col: 0 3
 #g2_col: 0 4
@@ -104,7 +104,7 @@ y_units: arcsec
 #g2_col: 0 G2
 
 
-# Sometimes there are issues with the sign conventions of gamma.  If you need to flip 
+# Sometimes there are issues with the sign conventions of gamma.  If you need to flip
 # the sign of g1 or g2, you may do that with flip_g1 or flip_g2 (or both).
 #flip_g1: false
 #flip_g2: false
@@ -115,21 +115,22 @@ y_units: arcsec
 #### Parameters about the binned correlation function to be calculated
 ####
 
-# The bins for the histogram may be defined by setting 3 of the following 
+# The bins for the histogram may be defined by setting 3 of the following
 # 4 parameters:
 #     min_sep  = the left edge of the first bin
 #     max_sep  = the right edge of the last bin
 #     nbins    = the number of bins
 #     bin_size = the width of the bins in log(sep)
-min_sep: 1.
-max_sep: 300.
-bin_size: 0.10
+#min_sep: 1.
+#max_sep: 300.
+#bin_size: 0.10
+n_bins: 100
 
 # sep_units specifies the units to use for min_sep and max_sep.
 # It is also the units of R in the output file.
 # If omitted, radians is assumed.  (So when using x,y, you can just omit both
 # this and x_units,y_units, and the units will match up and can be arbitrary.)
-sep_units: arcmin
+# sep_units: arcmin
 
 
 ####
@@ -143,7 +144,7 @@ sep_units: arcmin
 # For shear-shear correlations, the output file name is given by gg_file_name.
 #gg_file_name: gg.out
 
-# The code can compute the mass aperture statistic from the two-point shear correlation 
+# The code can compute the mass aperture statistic from the two-point shear correlation
 # function if you specify m2_file_name.
 #m2_file_name: m2.out
 
@@ -151,7 +152,7 @@ sep_units: arcmin
 #ng_file_name: ng.out
 
 # For count-count correlations, the output file name is given by nn_file_name.
-#nn_file_name: nn.out
+nnn_file_name: nnn.out
 
 
 ####
@@ -169,4 +170,3 @@ verbose: 2
 # The default is to let OpenMP determine an appropriate number of threads automatically.
 # Usually this matches the number of cores your system has.
 #num_threads: 1
-
