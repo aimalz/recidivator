@@ -121,8 +121,8 @@ y_units: arcsec
 #     max_sep  = the right edge of the last bin
 #     nbins    = the number of bins
 #     bin_size = the width of the bins in log(sep)
-#min_sep: 1.
-#max_sep: 300.
+min_sep: 1.
+max_sep: 300.
 #bin_size: 0.10
 nbins: 100
 
