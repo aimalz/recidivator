@@ -67,14 +67,14 @@ y_col: 2
 #g2_col: 4
 
 # The weight column is optional.  If omitted, all weights are taken to be 1.0.
-w_col: 5
+#w_col: 5
 
 # All distances on the sky include a "units" parameter to specify what in units the values
 # are specified.  So for x_col and y_col, we also have x_units and y_units.
 # Options for units are radians, hours, degrees, arcmin, arcsec.
 # If omitted, radians is assumed.
-x_units: arcsec
-y_units: arcsec
+#x_units: arcsec
+#y_units: arcsec
 
 # Instead of x_col and y_col, you may instead specify columns for RA and Declination.
 #ra_col: 1
@@ -125,8 +125,8 @@ min_sep: 1.
 max_sep: 300.
 #bin_size: 0.10
 nbins: 100
-min_u: 0.5
-max_u: 2.
+min_u: 0.1
+max_u: 1.
 nubins: 10
 #ubin_size:
 min_v: 0.1
