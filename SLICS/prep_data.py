@@ -42,4 +42,4 @@ for col in ['x', 'y', 'z']:
 # convert to Mpc/h
 phys_data = glob_data * 505. / 3072.
 
-loc_data.to_csv('for_treecorr.csv', header=False, index=False, sep=' ', columns=['x', 'y'])
+phys_data.to_csv('for_treecorr.csv', header=False, index=False, sep=' ', columns=['x', 'y'])
