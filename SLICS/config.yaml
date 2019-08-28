@@ -125,6 +125,14 @@ min_sep: 1.
 max_sep: 300.
 #bin_size: 0.10
 nbins: 100
+min_u: 0.5
+max_u: 2.
+nubins: 10
+#ubin_size:
+min_v: 0.1
+max_v: 1.
+nvbins: 10
+#vbin_size:
 
 # sep_units specifies the units to use for min_sep and max_sep.
 # It is also the units of R in the output file.
@@ -152,6 +160,12 @@ nbins: 100
 #ng_file_name: ng.out
 
 # For count-count correlations, the output file name is given by nn_file_name.
+#nn_file_name: nn.out
+
+# trying to get zeta without randoms
+nnn_statistic: 'simple'
+
+# For count-count-count correlations, the output file name is given by nn_file_name.
 nnn_file_name: nnn.out
 
 
