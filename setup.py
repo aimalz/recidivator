@@ -19,5 +19,5 @@ setup(
         "Operating System :: OS Independent",
         "Programming Language :: Python",
         ],
-    install_requires=["matplotlib", "numpy"]
+    install_requires=["matplotlib", "numpy", "sncosmo"]
 )

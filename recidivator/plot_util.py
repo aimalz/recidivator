@@ -1,4 +1,4 @@
-import numpy as np
+## Authors: Alex Malz
 
 import matplotlib as mpl
 mpl.use('Agg')
