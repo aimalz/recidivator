@@ -25,7 +25,7 @@
 ####
 
 # The file with the data to be correlated.
-file_name: for_treecorr.csv
+file_name: pos100.csv
 
 # You an also specify a second file, in which case the program calculates a
 # cross-correlation between the two sets of values.
@@ -62,7 +62,7 @@ file_type: ASCII
 # Columns are specified starting with 1 being the first column.  (Not 0.)
 x_col: 1
 y_col: 2
-#z_col: 3
+z_col: 3
 #g1_col: 3
 #g2_col: 4
 
@@ -122,7 +122,7 @@ y_col: 2
 #     nbins    = the number of bins
 #     bin_size = the width of the bins in log(sep)
 min_sep: 1.
-max_sep: 300.
+max_sep: 100.
 #bin_size: 0.10
 nbins: 100
 min_u: 0.1
@@ -160,13 +160,13 @@ nvbins: 10
 #ng_file_name: ng.out
 
 # For count-count correlations, the output file name is given by nn_file_name.
-#nn_file_name: nn.out
+nn_file_name: nn100.out
 
 # trying to get zeta without randoms
 nnn_statistic: 'simple'
 
 # For count-count-count correlations, the output file name is given by nn_file_name.
-nnn_file_name: nnn.out
+nnn_file_name: nnn100.out
 
 
 ####
@@ -183,4 +183,4 @@ verbose: 2
 # num_threads = the number of threads to use.
 # The default is to let OpenMP determine an appropriate number of threads automatically.
 # Usually this matches the number of cores your system has.
-#num_threads: 1
+num_threads: 40
