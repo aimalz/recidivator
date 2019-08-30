@@ -26,7 +26,7 @@ model {
   for (n in 1:N) {
     tavy[n] ~ multi_normal_cholesky(mu, L_Sigma);
   }
-
+}
 generated quantities {
   corr_matrix[D] Omega;
   cov_matrix[D] Sigma;
