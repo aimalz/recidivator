@@ -285,3 +285,43 @@ def print_corr2_params():
     """Print information about the valid parameters that may be given to the `corr2` function.
     """
     treecorr.config.print_params(corr2_valid_params)
+
+def main():
+    args = parse_args()
+
+    # Read the config file
+    config = treecorr.config.read_config(args.config_file, args.file_type)
+
+    # Create a logger with the given verbosity and log_file
+    verbose = args.verbosity
+    log_file = args.log_file
+    if verbose is None:
+        verbose = int(config.get('verbose',1))
+    if log_file is None:
+        log_file = config.get('log_file',None)
+    logger = treecorr.config.setup_logger(verbose,log_file)
+
+    logger.debug('Successfully read config file %s'%args.config_file)
+
+    # Add the additional variables to the config file
+    redo_logger = False
+    for v in args.variables:
+        logger.debug('Parsing additional variable: %s',v)
+        treecorr.config.parse_variable(config, v)
+        if v.startswith('verbose') or v.startswith('log_file'):
+            redo_logger = True
+
+    # Make sure command line verbose or log_file gets processed correctly.
+    if redo_logger:
+        if 'verbose' in config: verbose = int(config['verbose'])
+        if 'log_file' in config: log_file = config['log_file']
+        logger = treecorr.config.setup_logger(verbose,log_file)
+
+    logger.warning('Using config file %s'%args.config_file)
+
+    # Run the corr2 function
+    treecorr.corr2(config, logger)
+
+if __name__ == '__main__':
+    main()
+
