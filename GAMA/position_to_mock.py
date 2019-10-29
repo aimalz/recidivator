@@ -216,11 +216,11 @@ def calculate_environment(df, z, savefile=True, outdir='./', verbose=False,
     def calc_env(ind):
         res = [subsamples[f][s]['CATAID'].values[ind]]
         friends = data
-            for dist in try_distances:
-                friends = galenv.nn_finder(friends, data[ind], dist)
-                vol = area(dist, data[ind][0], data[ind][1], minx, maxx, miny, maxy, vb=False)
-                res.append(float(len(friends)) / vol)
-            return res
+        for dist in try_distances:
+            friends = galenv.nn_finder(friends, data[ind], dist)
+            vol = area(dist, data[ind][0], data[ind][1], minx, maxx, miny, maxy, vb=False)
+            res.append(float(len(friends)) / vol)
+        return res
 
     z_bins = redshift_bins(z)
 
@@ -271,7 +271,7 @@ def calculate_environment(df, z, savefile=True, outdir='./', verbose=False,
 
     df = pd.merge(envs_df, df, on='CATAID')
 
-    if savefile=True:
+    if savefile:
         path = os.path.join(outdir, 'enviros.csv')
         df.to_csv(path)
 
