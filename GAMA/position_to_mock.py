@@ -161,122 +161,60 @@ def distance_bins(z, verbose=False, **kwargs):
 
     return try_distances
 
-def calculate_environment(df, z, savefile=True, outdir='./', verbose=False,
-                          **kwargs):
-    """
-        Calculates the number of nearest neighbors per galaxy normalized by
-        area/volume.
-    """
+## segment, sector, and area define the area to normalize the num neighbors
+def segment(r, d, theta=None):
+    if theta == None:
+        theta = 2. * np.arccos(d / r)
+    return r**2 * (theta - np.sin(theta)) / 2.
 
-    ## segment, sector, and area define the area to normalize the num neighbors
-    def segment(r, d, theta=None):
-        if theta == None:
-            theta = 2. * np.arccos(d / r)
-        return r**2 * (theta - np.sin(theta)) / 2.
+def sector(r, d, theta=None):
+    if theta == None:
+        theta = np.arcsin(d / r)
+    return r**2 * theta / 2.
 
-    def sector(r, d, theta=None):
-        if theta == None:
-            theta = np.arcsin(d / r)
-        return r**2 * theta / 2.
-
-    # this throws an error at the points used to define minx, maxx, miny, maxy
-    def area(r, x, y, minx, maxx, miny, maxy, vb=True):
-        lx = x - minx
-        ux = maxx - x
-        ly = y - miny
-        uy = maxy - y
-        distances = np.array([lx, ux, ly, uy])
-        condition = (distances >= r)
-        ntrue = sum(condition)
-        if ntrue == 4:
-            return np.pi * r**2
-        elif ntrue == 3:
-            return np.pi * r**2 - segment(r, min(distances))
-        elif ntrue == 2:
-            if vb: print('radii should be chosen so that these cannot be parallel, \
-                    but will at some point add in a check for this')
-            distx = min(distances[:2])
-            disty = min(distances[-2:])
-            if np.sqrt(distx**2 + disty**2) < r:
-                thetax = np.arcsin(distx / r)
-                thetay = np.arcsin(disty / r)
-                areax = distx * r * np.cos(thetax) / 2.
-                areay = disty * r * np.cos(thetay) / 2.
-                return sector(r, distx, theta=thetax) + sector(r, disty, theta=thetay) + \
-                                sector(r, r, theta=np.pi / 2.) + distx * disty + areax + areay
-            else:
-                return np.pi * r**2 - segment(r, distx) - segment(r, disty)
+# this throws an error at the points used to define minx, maxx, miny, maxy
+def area(r, x, y, minx, maxx, miny, maxy, vb=True):
+    lx = x - minx
+    ux = maxx - x
+    ly = y - miny
+    uy = maxy - y
+    distances = np.array([lx, ux, ly, uy])
+    condition = (distances >= r)
+    ntrue = sum(condition)
+    if ntrue == 4:
+        return np.pi * r**2
+    elif ntrue == 3:
+        return np.pi * r**2 - segment(r, min(distances))
+    elif ntrue == 2:
+        if vb: print('radii should be chosen so that these cannot be parallel, \
+                but will at some point add in a check for this')
+        distx = min(distances[:2])
+        disty = min(distances[-2:])
+        if np.sqrt(distx**2 + disty**2) < r:
+            thetax = np.arcsin(distx / r)
+            thetay = np.arcsin(disty / r)
+            areax = distx * r * np.cos(thetax) / 2.
+            areay = disty * r * np.cos(thetay) / 2.
+            return sector(r, distx, theta=thetax) + sector(r, disty, theta=thetay) + \
+                            sector(r, r, theta=np.pi / 2.) + distx * disty + areax + areay
         else:
-            if vb: print('this case should not happen because we did not consider radii \
-                    beyond half the shortest side of the footprint,\
-                    but will at some point deal with this case')
-            return None
+            return np.pi * r**2 - segment(r, distx) - segment(r, disty)
+    else:
+        if vb: print('this case should not happen because we did not consider radii \
+                beyond half the shortest side of the footprint,\
+                but will at some point deal with this case')
+        return None
 
-    ## Calculates volume normalized environment
-    def calc_env(ind):
-        res = [subsamples[f][s]['CATAID'].values[ind]]
-        friends = data
-        for dist in try_distances:
-            friends = galenv.nn_finder(friends, data[ind], dist)
-            vol = area(dist, data[ind][0], data[ind][1], minx, maxx, miny, maxy, vb=False)
-            res.append(float(len(friends)) / vol)
-        return res
 
-    z_bins = redshift_bins(z)
-
-    RA_bin_ends = [0., 80., 160., 200., 360.]
-    subsamples, lens = [], []
-    field_bounds = []
-    for i in range(len(RA_bin_ends)-1):
-        one_field, one_len = [], []
-        part_subsample = df.loc[(df['RA'] >= RA_bin_ends[i]) & (df['RA'] < RA_bin_ends[i+1])]
-        (minx, maxx) = (np.floor(part_subsample['RA'].min()), np.ceil(part_subsample['RA'].max()))
-        (miny, maxy) = (np.floor(part_subsample['DEC'].min()), np.ceil(part_subsample['DEC'].max()))
-        for j in range(len(z_bins)-1):
-            subsample = df.loc[(df['RA'] >= RA_bin_ends[i]) & (df['RA'] < RA_bin_ends[i+1])
-                                 & (df['NQ'] > 2) & (df['Z'] >= z_bins[j]) & (df['Z'] < z_bins[j+1]),
-                                 ['CATAID', 'RA', 'DEC', 'Z', 'NQ']]
-            nn = len(subsample)
-            if nn > 0:
-                one_len.append(nn)
-                one_field.append(subsample)
-        subsamples.append(one_field)
-        lens.append(one_len)
-        field_bounds.append((minx, maxx, miny, maxy))
-
-    ## Get the bins in angular distance
-    try_distances = distance_bins(z, **kwargs)
-
-    all_envs = []
-    for f in range(len(subsamples)):
-        (minx, maxx, miny, maxy) = field_bounds[f]
-        assert(max(try_distances) <= min((maxx - minx), (maxy - miny)) / 2.)
-        for s in range(len(subsamples[f])) :
-            if verbose:
-                print(lens[f][s])
-            if lens[f][s] == 0:
-                continue
-            elif lens[f][s] == 1:
-                envs_in_field = [[subsamples[f][s]['CATAID'].values[0]] + [1] * len(try_distances)]
-            else:
-                data = np.vstack(([subsamples[f][s]['RA'], subsamples[f][s]['DEC']])).T
-                nps = mp.cpu_count()
-                pool = mp.Pool(nps - 1)
-                envs_in_field = pool.map(calc_env, range(len(data)))
-                all_envs = all_envs + envs_in_field
-                pool.close()
-
-    envs_arr = np.array(all_envs)
-    envs_df = pd.DataFrame(data=envs_arr, index = envs_arr[:, 0], columns = ['CATAID']+[str(i) for i in try_distances])
-
-    df = pd.merge(envs_df, df, on='CATAID')
-
-    if savefile:
-        path = os.path.join(outdir, 'enviros.csv')
-        df.to_csv(path)
-
-    return df
-
+## Calculates volume normalized environment
+def calc_env(ind):
+    res = [subsamples[f][s]['CATAID'].values[ind]]
+    friends = data
+    for dist in try_distances:
+        friends = galenv.nn_finder(friends, data[ind], dist)
+        vol = area(dist, data[ind][0], data[ind][1], minx, maxx, miny, maxy, vb=False)
+        res.append(float(len(friends)) / vol)
+    return res
 
 
 if __name__ == "__main__":
@@ -284,6 +222,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--debug', action='store_true', default=False)
     parser.add_argument('--verbose', action='store_true', default=False)
+    parser.add_argument('--no_files', dest='savefile',
+                        default=True, action='store_false')
+    parser.add_argument('--run_env', dest='run_environment',
+                        default=False, action='store_true')
     args = parser.parse_args()
 
     loc_on_emilles_comp = '/media/CRP6/Cosmology/'
@@ -293,9 +235,61 @@ if __name__ == "__main__":
 
     create_redshift_data(df, z_SLICS)
 
-    env = calculate_environment(df, z_SLICS)
+    ## Get the bins in angular distance
+    try_distances = distance_bins(z_SLICS, **kwargs)
 
+    if opts.run_environment:
 
+        z_bins = redshift_bins(z_SLICS)
 
+        RA_bin_ends = [0., 80., 160., 200., 360.]
+        subsamples, lens = [], []
+        field_bounds = []
+        for i in range(len(RA_bin_ends)-1):
+            one_field, one_len = [], []
+            part_subsample = df.loc[(df['RA'] >= RA_bin_ends[i]) & (df['RA'] < RA_bin_ends[i+1])]
+            (minx, maxx) = (np.floor(part_subsample['RA'].min()), np.ceil(part_subsample['RA'].max()))
+            (miny, maxy) = (np.floor(part_subsample['DEC'].min()), np.ceil(part_subsample['DEC'].max()))
+            for j in range(len(z_bins)-1):
+                subsample = df.loc[(df['RA'] >= RA_bin_ends[i]) & (df['RA'] < RA_bin_ends[i+1])
+                                     & (df['NQ'] > 2) & (df['Z'] >= z_bins[j]) & (df['Z'] < z_bins[j+1]),
+                                     ['CATAID', 'RA', 'DEC', 'Z', 'NQ']]
+                nn = len(subsample)
+                if nn > 0:
+                    one_len.append(nn)
+                    one_field.append(subsample)
+            subsamples.append(one_field)
+            lens.append(one_len)
+            field_bounds.append((minx, maxx, miny, maxy))
+
+        all_envs = []
+        for f in range(len(subsamples)):
+            (minx, maxx, miny, maxy) = field_bounds[f]
+            assert(max(try_distances) <= min((maxx - minx), (maxy - miny)) / 2.)
+            for s in range(len(subsamples[f])) :
+                # s represents redshift bin
+                #try_distances = distance_bins(z[s], **kwargs)
+                if verbose:
+                    print(lens[f][s])
+                if lens[f][s] == 0:
+                    continue
+                elif lens[f][s] == 1:
+                    envs_in_field = [[subsamples[f][s]['CATAID'].values[0]] + [1] * len(try_distances)]
+                else:
+                    data = np.vstack(([subsamples[f][s]['RA'], subsamples[f][s]['DEC']])).T
+                    nps = mp.cpu_count()
+                    pool = mp.Pool(nps - 1)
+                    envs_in_field = pool.map(calc_env, range(len(data)))
+                    all_envs = all_envs + envs_in_field
+                    pool.close()
+
+        envs_arr = np.array(all_envs)
+        envs_df = pd.DataFrame(data=envs_arr, index = envs_arr[:, 0], columns = ['CATAID']+[str(i) for i in try_distances])
+
+        df = pd.merge(envs_df, df, on='CATAID')
+
+        if opts.savefile:
+            path = os.path.join(outdir, 'enviros.csv')
+            df.to_csv(path)
 
 
