@@ -152,7 +152,7 @@ if __name__ == "__main__":
     parser.add_argument('--verbose', action='store_true', default=False)
     args = parser.parse_args()
 
-    loc_on_emilles_comp = '/media/CRP6/Cosmology/recidivator/GAMA/'
+    loc_on_emilles_comp = '/media/CRP6/Cosmology/'
 
     df = GAMA_catalog_w_photometry(datadir_spec=loc_on_emilles_comp,
                                    datadir_phot=loc_on_emilles_comp)
