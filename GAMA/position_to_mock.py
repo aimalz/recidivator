@@ -226,7 +226,7 @@ if __name__ == "__main__":
                         default=True, action='store_false')
     parser.add_argument('--run_env', dest='run_environment',
                         default=False, action='store_true')
-    args = parser.parse_args()
+    opts = parser.parse_args()
 
     loc_on_emilles_comp = '/media/CRP6/Cosmology/'
 
@@ -236,7 +236,7 @@ if __name__ == "__main__":
     create_redshift_data(df, z_SLICS)
 
     ## Get the bins in angular distance
-    try_distances = distance_bins(z_SLICS, **kwargs)
+    try_distances = distance_bins(z_SLICS)
 
     if opts.run_environment:
 
@@ -269,7 +269,7 @@ if __name__ == "__main__":
             for s in range(len(subsamples[f])) :
                 # s represents redshift bin
                 #try_distances = distance_bins(z[s], **kwargs)
-                if verbose:
+                if opts.verbose:
                     print(lens[f][s])
                 if lens[f][s] == 0:
                     continue
