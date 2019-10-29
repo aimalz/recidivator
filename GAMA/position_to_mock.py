@@ -51,7 +51,7 @@ def GAMA_catalog_w_photometry(datadir_spec='./', datadir_phot='./', outdir='./')
     # You can find the photo_noinfs.csv on
     Emille's computer at /media/CRP6/Cosmology/
     """
-    path_specobj = os.path.join(datadir_spec, 'photo_noinfs.csv')
+    path_specobj = os.path.join(datadir_spec, 'SpecObj.fits')
     with fits.open(path_specobj) as hdul:
         hdul.info()
         df_orig = pd.DataFrame(np.array(hdul[1].data).byteswap().newbyteorder())
