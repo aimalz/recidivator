@@ -43,7 +43,7 @@ def color_map(dat, map, vmin, vmax):
     color=scalarMap.to_rgba(dat)
     return color
 
-def GAMA_catalog_w_photometry(datadir_spec='./', datadir_phot='./'):
+def GAMA_catalog_w_photometry(datadir_spec='./', datadir_phot='./', outdir='./'):
     """
     Create final dataframe
     # if you want to remake this, download the SpecObj.fits from
@@ -52,18 +52,16 @@ def GAMA_catalog_w_photometry(datadir_spec='./', datadir_phot='./'):
     Emille's computer at /media/CRP6/Cosmology/
     """
     path_specobj = os.path.join(datadir_spec, 'photo_noinfs.csv')
-    with fits.open('SpecObj.fits') as hdul:
+    with fits.open(path_specobj) as hdul:
         hdul.info()
         df_orig = pd.DataFrame(np.array(hdul[1].data).byteswap().newbyteorder())
-        df_orig.index = df_orig['CATAID']
 
     path_phot = os.path.join(datadir_phot, 'photo_noinfs.csv')
     phot = pd.read_csv(path_phot)
-    phot.index = phot['CATAID']
 
     new = df_orig.merge(phot, on='CATAID')
     df = new.drop(columns=new.columns[19])
-    df.to_csv('SpecObjPhot.csv')
+    df.to_csv(os.path.join(outdir, 'SpecObjPhot.csv'))
 
     return df
 
@@ -72,7 +70,7 @@ def redshift_bins(z, z_low=0.023, z_high=3.066):
     """
         Input: Array of lists of redshifts matching N-body data
         Output: Redshift bins for real data
-        
+
         z_low: lower limit of lowest redshift bin. Default calculated for SLICS
         z_high: higher limit of highes redshift bin. Default calculated for SLICS
     """
@@ -85,29 +83,28 @@ def create_redshift_data(df, z, datadir='./', verbose=False, **kwargs):
     """
         Separates the galaxy data into redshift bins and saves the catalog
         into a pandas dataframe located in SpecObjPhot/
-        
+
         Input
         df: Pandas data frame with catalog info ('SURVEY', 'Z') and photometry.
         z: redshift array
         datadir: location of output data
         verbose: Will bring the number of galaxies in each redshift bin
         kwargs: z_low, z_high for input into redshift_bins(z,z_low,z_high)
-        
+
         Output:
         Returns nothing but creates directories contained the redshift bin files
-        
     """
     z_low = kwargs.pop('z_low', 0.023) # default is SLICS
     z_high = kwargs.pop('z_high', 3.066) # default is SLICS
-    
+
     endpoints = redshift_bins(z, z_low=z_low, z_high=z_high)[1:]
-    
-    survey_info = np.array([x.split("'")[1].strip() for x in df['SURVEY'].values])
-    
+
+    survey_info = np.array([str(x).split()[0][2:] for x in df['SURVEY'].values])
+
     subsamples, lens = [], []
 
     # Create the subsample for the lowest bin
-    subsamples.append(df.loc[(df['Z'] >= zbin[0])
+    subsamples.append(df.loc[(df['Z'] >= z_low)
                              & (df['Z'] < endpoints[0])
                              & (df['NQ'] > 2)
                              & ((df['lsstg'] > 0) |
@@ -118,7 +115,6 @@ def create_redshift_data(df, z, datadir='./', verbose=False, **kwargs):
                                 (survey_info == 'SDSS') |
                                 (survey_info == 'VVDS')
                                 )])
-
     lens.append(len(subsamples[-1]))
 
     # create all other subsamples
@@ -134,11 +130,10 @@ def create_redshift_data(df, z, datadir='./', verbose=False, **kwargs):
                                     (survey_info == 'SDSS') |
                                     (survey_info == 'VVDS')
                                    )])
-
         lens.append(len(subsamples[-1]))
 
     if verbose:
-        print('My bins have this many galaxies: ' zbins, lens)
+        print('My bins have this many galaxies: ', z, lens)
 
     # Save the subsamples per redshift to be called later
     os.makedirs(os.path.join(datadir, 'SpecObjPhot'), exist_ok=True)
@@ -162,7 +157,7 @@ if __name__ == "__main__":
     df = GAMA_catalog_w_photometry(datadir_spec=loc_on_emilles_comp,
                                    datadir_phot=loc_on_emilles_comp)
 
-    create_redshift_data(df)
+    create_redshift_data(df, z_SLICS)
 
 
 
