@@ -233,7 +233,9 @@ def calc_env(ind):
 ### Clustering function
 def run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
                    max_iter=5, random_state=0, savefiles=True, outdir='./'):
-
+    """
+        info
+    """
     try_distances = distance_bins(float(str_z))
     str_tryd = [str(i) for i in try_distances]
 
@@ -248,6 +250,9 @@ def run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
 
     df['label'] = km.labels_
 
+    df['r-i'] = df['lsstr']-df['lssti']
+    df['i-z'] = df['lssti']-df['lsstz']
+
     if savefiles:
         os.makedirs('ts_kmeans', exist_ok=True)
         filename = 'ts_kmeans/tskmeans_%s.pkl' % str_z
@@ -257,6 +262,54 @@ def run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
         df.to_csv(path)
 
     return df
+
+### Make populations
+def create_fit_summaries(df, lbl, str_z, iter=1000, chains=4, warmup=500,
+                         savefiles=True, outdir='./'):
+    """
+        info
+        TBD: generalize per redshift bin
+    """
+    df_l = df.loc[df['label']==lbl]
+
+    N = len(df_l)
+
+    vals = df_l[['r-i', 'i-z', 'lsstr']].values
+
+    N_re = 1
+
+    dat = {
+        'N': N,
+        'D': 3,
+        'N_resamples': N_re,
+        'tavy': vals,
+    }
+
+    ## You only need this ONE model to fix all of the data no matter what label or redshift you have!
+    try:
+        sm = pickle.load(open('3D_Gaussian_model.pkl', 'rb'))
+    except:
+        sm = pystan.StanModel(file='some_dimensional_gaussian.stan')
+        # Save the model so that you don't have to keep regenerating it.
+        with open('3D_Gaussian_model.pkl', 'wb') as f:
+            pickle.dump(sm, f)
+
+    fit = sm.sampling(data=dat, iter=iter, chains=chains, warmup=warmup)
+
+    summary = pd.DataFrame(fit.summary(pars=['mu', 'Sigma'])['summary'],
+                           columns=fit.summary(pars=['mu', 'Sigma'])['summary_colnames'])
+
+    summary['Names'] = fit.summary(pars=['mu', 'Sigma'])['summary_rownames']
+
+    if savefiles:
+        path_dir = os.path.join(outdir, 'fit_summaries')
+        path_files = os.path.join(outdir,
+                                  'fit_summaries/summary_%s_label_%s.csv'
+                                  % (str_z, lbl))
+        os.makedirs(path_dir, exist_ok=True)
+        summary.to_csv(path_files)
+
+    return summary
 
 ### Plotting routines
 def make_orchestra(z, zenvdf, savefig=True, verbose=False):
@@ -300,6 +353,8 @@ def make_orchestra(z, zenvdf, savefig=True, verbose=False):
     cax, _ = matplotlib.colorbar.make_axes(ax, pad=0.01)
     cbar = matplotlib.colorbar.ColorbarBase(cax, cmap=plt.cm.Spectral_r, norm=cNorm)
     cbar.ax.set_ylabel('redshift', size=12)
+
+    plt.tight_layout()
 
     if savefig:
         plt.savefig('orchestra_neighbor_v_distance.pdf')
@@ -381,5 +436,13 @@ if __name__ == "__main__":
         except FileNotFoundError:
             print('No enviros.csv file. Must run with --run_env flag to generate.')
 
-    df_w_label = run_clustering('0.08', zenvdf)
+    z_string = '0.08'
+    df_w_label = run_clustering(z_string, zenvdf)
+
+    # create the fit summaries for every label
+    n_clusters = 10
+    label = np.arange(0, n_clusters, 1)
+
+    for l in label:
+        create_fit_summaries(df_w_label, l, z_string)
 
