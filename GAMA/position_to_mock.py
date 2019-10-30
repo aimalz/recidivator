@@ -33,7 +33,7 @@ z_SLICS = np.array([0.042, 0.080, 0.130, 0.221, 0.317, 0.418, 0.525, 0.640,
 ## Define a color map
 colmap = 'Spectral_r'
 
-def color_map(dat, map, vmin, vmax):
+def color_map(dat, vmin, vmax, map=colmap):
     """
         Placeholder color map
     """
@@ -54,7 +54,6 @@ def GAMA_catalog_w_photometry(datadir_spec='./', datadir_phot='./', outdir='./',
     """
     path_specobj = os.path.join(datadir_spec, 'SpecObj.fits')
     with fits.open(path_specobj) as hdul:
-        hdul.info()
         df_orig = pd.DataFrame(np.array(hdul[1].data).byteswap().newbyteorder())
 
     path_phot = os.path.join(datadir_phot, 'photo_noinfs.csv')
@@ -148,7 +147,7 @@ def create_redshift_data(df, z, datadir='./', verbose=False, **kwargs):
 def redshift_df(str_z, zenvdf, datadir='./'):
     path = os.path.join(datadir, 'SpecObjPhot/SpecObjPhot*.csv')
     r_files = glob.glob(path)
-    f = [s for s in r_files if str_zbin in s]
+    f = [s for s in r_files if str_z in s]
     phodf = pd.read_csv(f[0])
     phodf = phodf.drop(columns=['GAMA_NAME', 'IC_FLAG',
                                 'N_SPEC', 'N_GAMA_SPEC', 'DIST',
@@ -234,14 +233,15 @@ def calc_env(ind):
 ### Clustering function
 def run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
                    max_iter=5, random_state=0, savefiles=True, outdir='./'):
+
     try_distances = distance_bins(float(str_z))
-    str_tryd = [str(i) for i in try_distance]
+    str_tryd = [str(i) for i in try_distances]
 
     df = redshift_df(str_z, zenvdf)
+    df = df.loc[(df['lsstr'] > 0) & (df['lssti'] > 0) & (df['lsstz'] > 0)]
 
     # the three available filters
-    X = df.loc[(df['lsstr'] > 0) & (df['lssti'] > 0) & (df['lsstz'] > 0),
-               [str_tryd]].values
+    X = df[str_tryd].values
 
     km = TimeSeriesKMeans(n_clusters=n_clusters, metric=metric,
                           max_iter=max_iter, random_state=random_state).fit(X)
@@ -259,10 +259,17 @@ def run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
     return df
 
 ### Plotting routines
-def make_orchestra(z, savefig=True, verbose=False):
+def make_orchestra(z, zenvdf, savefig=True, verbose=False):
+    # Still some color map issues and need to generalize for redshifts.
+    try_distances = distance_bins(z[0])
+    orig_distances = np.flip(try_distances, axis=0)
+
+    color = color_map(z, vmin=z[0], vmax=z[-1])
+    cNorm  = colors.Normalize(vmin=z[0], vmax=z[-1])
+
     fig, ax = plt.subplots(figsize=(15,10))
     for n, z in enumerate(z):
-        df = redshift_df(str(z))
+        df = redshift_df(str(z), zenvdf)
         if len(df) > 0:
             for i in range(len(orig_distances)):
                 parts = ax.violinplot(df[str(orig_distances[i])], positions=[i], vert=False)
@@ -288,7 +295,7 @@ def make_orchestra(z, savefig=True, verbose=False):
     plt.yticks(range(len(orig_distances)), np.around(orig_distances, 3))
     ax.semilogx()
     ax.set_ylabel('radial distance [deg]', size=15)
-    ax.set_xlabel('number of neighbors', size=15)
+    ax.set_xlabel('Normalized number of neighbors', size=15)
 
     cax, _ = matplotlib.colorbar.make_axes(ax, pad=0.01)
     cbar = matplotlib.colorbar.ColorbarBase(cax, cmap=plt.cm.Spectral_r, norm=cNorm)
