@@ -221,7 +221,11 @@ def area(r, x, y, minx, maxx, miny, maxy, vb=True):
 
 ## Calculates volume normalized environment
 def calc_env(ind):
-    res = [subsamples[f][s]['CATAID'].values[ind]]
+    if opts.run_environment:
+        res = [subsamples[f][s]['CATAID'].values[ind]]
+    if opts.run_particle_environment:
+        res = [ind]
+
     friends = data
     for dist in try_distances:
         friends = galenv.nn_finder(friends, data[ind], dist)
@@ -311,6 +315,44 @@ def create_fit_summaries(df, lbl, str_z, iter=1000, chains=4, warmup=500,
 
     return summary
 
+
+## Given environment curves for particle data return galaxy properties
+def get_label(n_r, str_redshift, verbose=False):
+    """
+        n_r: array of number of neighbors at same radii as TS Kmeans was trained
+        redshift: redshift bin to get model
+
+        returns: label in an array
+        """
+
+    filename = 'ts_kmeans/tskmeans_%s.pkl'% str_redshift
+    km = pickle.load(open(filename, 'rb'))
+    if len(n_r.shape) == 1:
+        predicted = km.predict(n_r.reshape(1, -1))
+    else:
+        predicted = km.predict(n_r)
+
+    if verbose:
+        print("Predicted label is: ", predicted)
+
+    return predicted
+
+def get_random_sample(label, str_redshift):
+    from scipy.stats import multivariate_normal
+    rando = []
+    for l in label:
+        summary = pd.read_csv('fit_summaries/summary_%s_label_%s.csv' %(str_redshift, label[0]))
+        mus = summary.iloc[:3]['mean'].values
+        cov = summary.iloc[3:]['mean'].values.reshape(3, 3)
+
+        rando.append(multivariate_normal.rvs(mus, cov))
+    return rando
+
+def get_properties(n_r, str_redshift, verbose=False):
+    l = get_label(n_r, str_redshift, verbose=verbose)
+    samp = get_random_sample(l, str_redshift)
+    return samp
+
 ### Plotting routines
 def make_orchestra(z, zenvdf, savefig=True, verbose=False):
     # Still some color map issues and need to generalize for redshifts.
@@ -369,6 +411,8 @@ if __name__ == "__main__":
     parser.add_argument('--no_files', dest='savefile',
                         default=True, action='store_false')
     parser.add_argument('--run_env', dest='run_environment',
+                        default=False, action='store_true')
+    parser.add_argument('--run_particle', dest='run_particle_environment',
                         default=False, action='store_true')
     opts = parser.parse_args()
 
@@ -446,3 +490,40 @@ if __name__ == "__main__":
     for l in label:
         create_fit_summaries(df_w_label, l, z_string)
 
+    if run_particle_environment:
+        particles = pd.read_csv('ang2deg.csv')
+
+        try_distances = distance_bins(float(z_string))
+
+        rand_indicies = np.random.uniform(low=0, high=len(particles), size=3000)
+        data = particles.iloc[rand_indicies].values
+
+        (minx, maxx) = (np.floor(data[:, 0].min()), np.ceil(data[:, 0].max()))
+        (miny, maxy) = (np.floor(data[:, 1].min()), np.ceil(data[:, 1].max()))
+
+        nps = mp.cpu_count()
+        pool = mp.Pool(nps - 1)
+        envs_in_field = pool.map(calc_env, range(len(data)))
+        pool.close()
+
+        # List of environments in the particle data
+        envs_in_field = np.array(envs_in_field)
+        #envs_in_field = np.delete(envs_in_field, 0, axis=1)
+
+        envs_df = pd.DataFrame(data=envs_in_field,
+                               index = envs_in_field[:, 0],
+                               columns = ['CATAID']+[str(i) for i in try_distances])
+
+        if opts.savefile:
+            path = os.path.join(outdir, 'particle_enviros.csv')
+            envs_df.to_csv(path)
+
+    else:
+        try:
+            envs_in_field = pd.read_csv('particle_enviros.csv')
+        except FileNotFoundError:
+            print('No particle_enviros.csv file.', \
+                  'Must run with --run_particle flag to generate.')
+
+    results = get_properties(envs_in_field[:].values[:,1:], str_red)
+    # ra, dec
