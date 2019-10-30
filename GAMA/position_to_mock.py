@@ -231,6 +231,33 @@ def calc_env(ind):
     return res
 ###
 
+### Clustering function
+def run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
+                   max_iter=5, random_state=0, savefiles=True, outdir='./'):
+    try_distances = distance_bins(float(str_z))
+    str_tryd = [str(i) for i in try_distance]
+
+    df = redshift_df(str_z, zenvdf)
+
+    # the three available filters
+    X = df.loc[(df['lsstr'] > 0) & (df['lssti'] > 0) & (df['lsstz'] > 0),
+               [str_tryd]].values
+
+    km = TimeSeriesKMeans(n_clusters=n_clusters, metric=metric,
+                          max_iter=max_iter, random_state=random_state).fit(X)
+
+    df['label'] = km.labels_
+
+    if savefiles:
+        os.makedirs('ts_kmeans', exist_ok=True)
+        filename = 'ts_kmeans/tskmeans_%s.pkl' % str_z
+        pickle.dump(km, open(filename, 'wb'))
+
+        path = os.path.join(outdir, 'Redshift_df_label_%s.csv' % str_z)
+        df.to_csv(path)
+
+    return df
+
 ### Plotting routines
 def make_orchestra(z, savefig=True, verbose=False):
     fig, ax = plt.subplots(figsize=(15,10))
@@ -346,4 +373,6 @@ if __name__ == "__main__":
             zenvdf = pd.read_csv('enviros.csv')
         except FileNotFoundError:
             print('No enviros.csv file. Must run with --run_env flag to generate.')
+
+    df_w_label = run_clustering('0.08', zenvdf)
 
