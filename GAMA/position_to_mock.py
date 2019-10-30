@@ -290,5 +290,5 @@ if __name__ == "__main__":
         try:
             zenvdf = pd.read_csv('enviros.csv')
         except FileNotFoundError:
-            print('No enviros.csv file. Must run with --run_env flag to generate.")
+            print('No enviros.csv file. Must run with --run_env flag to generate.')
 
