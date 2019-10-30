@@ -145,6 +145,19 @@ def create_redshift_data(df, z, datadir='./', verbose=False, **kwargs):
 
     return
 
+def redshift_df(str_z, zenvdf, datadir='./'):
+    path = os.path.join(datadir, 'SpecObjPhot/SpecObjPhot*.csv')
+    r_files = glob.glob(path)
+    f = [s for s in r_files if str_zbin in s]
+    phodf = pd.read_csv(f[0])
+    phodf = phodf.drop(columns=['GAMA_NAME', 'IC_FLAG',
+                                'N_SPEC', 'N_GAMA_SPEC', 'DIST',
+                                'SPECID', 'SURVEY', 'SURVEY_CODE',
+                                'RA', 'DEC', 'WMIN', 'WMAX', 'Z', 'NQ',
+                                'PROB', 'FILENAME', 'URL', 'URL_IMG'])
+    df = pd.merge(phodf, zenvdf, on=['CATAID'])
+    return df
+
 def distance_bins(z, verbose=False, **kwargs):
     """
         I expect the bins to be a function of redshift in some way.
@@ -161,6 +174,7 @@ def distance_bins(z, verbose=False, **kwargs):
 
     return try_distances
 
+### This group of functions is to calculate environment
 ## segment, sector, and area define the area to normalize the num neighbors
 def segment(r, d, theta=None):
     if theta == None:
@@ -215,6 +229,47 @@ def calc_env(ind):
         vol = area(dist, data[ind][0], data[ind][1], minx, maxx, miny, maxy, vb=False)
         res.append(float(len(friends)) / vol)
     return res
+###
+
+### Plotting routines
+def make_orchestra(z, savefig=True, verbose=False):
+    fig, ax = plt.subplots(figsize=(15,10))
+    for n, z in enumerate(z):
+        df = redshift_df(str(z))
+        if len(df) > 0:
+            for i in range(len(orig_distances)):
+                parts = ax.violinplot(df[str(orig_distances[i])], positions=[i], vert=False)
+                np.where(df[str(orig_distances[i])] < 1)
+                c = color[n]
+                for pc in parts['bodies']:
+                    pc.set_facecolor(c)
+                    pc.set_edgecolor(c)
+                    pc.set_alpha(0.5)
+
+                parts['cbars'].set_color(c)
+                parts['cbars'].set_alpha(0.4)
+
+                parts['cmaxes'].set_color(c)
+                parts['cmaxes'].set_alpha(0.4)
+
+                parts['cmins'].set_color(c)
+                parts['cmins'].set_alpha(0.4)
+        else:
+            if verbose:
+                print("I have nothing for you at n=%s, z=%s"%(n,z))
+
+    plt.yticks(range(len(orig_distances)), np.around(orig_distances, 3))
+    ax.semilogx()
+    ax.set_ylabel('radial distance [deg]', size=15)
+    ax.set_xlabel('number of neighbors', size=15)
+
+    cax, _ = matplotlib.colorbar.make_axes(ax, pad=0.01)
+    cbar = matplotlib.colorbar.ColorbarBase(cax, cmap=plt.cm.Spectral_r, norm=cNorm)
+    cbar.ax.set_ylabel('redshift', size=12)
+
+    if savefig:
+        plt.savefig('orchestra_neighbor_v_distance.pdf')
+    return
 
 
 if __name__ == "__main__":
