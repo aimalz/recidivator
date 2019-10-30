@@ -235,9 +235,6 @@ if __name__ == "__main__":
 
     create_redshift_data(df, z_SLICS)
 
-    ## Get the bins in angular distance
-    try_distances = distance_bins(z_SLICS)
-
     if opts.run_environment:
 
         z_bins = redshift_bins(z_SLICS)
@@ -255,9 +252,8 @@ if __name__ == "__main__":
                                      & (df['NQ'] > 2) & (df['Z'] >= z_bins[j]) & (df['Z'] < z_bins[j+1]),
                                      ['CATAID', 'RA', 'DEC', 'Z', 'NQ']]
                 nn = len(subsample)
-                if nn > 0:
-                    one_len.append(nn)
-                    one_field.append(subsample)
+                one_len.append(nn)
+                one_field.append(subsample)
             subsamples.append(one_field)
             lens.append(one_len)
             field_bounds.append((minx, maxx, miny, maxy))
@@ -265,10 +261,9 @@ if __name__ == "__main__":
         all_envs = []
         for f in range(len(subsamples)):
             (minx, maxx, miny, maxy) = field_bounds[f]
-            assert(max(try_distances) <= min((maxx - minx), (maxy - miny)) / 2.)
             for s in range(len(subsamples[f])) :
-                # s represents redshift bin
-                #try_distances = distance_bins(z[s], **kwargs)
+                try_distances = distance_bins(z_SLICS[s])
+                assert(max(try_distances) <= min((maxx - minx), (maxy - miny)) / 2.)
                 if opts.verbose:
                     print(lens[f][s])
                 if lens[f][s] == 0:
@@ -286,10 +281,14 @@ if __name__ == "__main__":
         envs_arr = np.array(all_envs)
         envs_df = pd.DataFrame(data=envs_arr, index = envs_arr[:, 0], columns = ['CATAID']+[str(i) for i in try_distances])
 
-        df = pd.merge(envs_df, df, on='CATAID')
+        zendf = pd.merge(envs_df, df, on='CATAID')
 
         if opts.savefile:
             path = os.path.join(outdir, 'enviros.csv')
             df.to_csv(path)
-
+    else:
+        try:
+            zenvdf = pd.read_csv('enviros.csv')
+        except FileNotFoundError:
+            print('No enviros.csv file. Must run with --run_env flag to generate.")
 
