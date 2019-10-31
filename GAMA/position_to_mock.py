@@ -16,6 +16,7 @@ import matplotlib.cm as cmx
 import matplotlib
 
 from astropy.io import fits
+from astropy.cosmology import FlatLambdaCDM
 import corner
 import environment as galenv
 
@@ -157,16 +158,37 @@ def redshift_df(str_z, zenvdf, datadir='./'):
     df = pd.merge(phodf, zenvdf, on=['CATAID'])
     return df
 
-def distance_bins(z, verbose=False, **kwargs):
+def distance_bins(z, n=10, noz=False, verbose=False, **kwargs):
     """
-        I expect the bins to be a function of redshift in some way.
-        This is a filler function so we have a way to plug and go if we change.
-    """
-    dmin= kwargs.pop('dmin', 0.2)
-    dmax = kwargs.pop('dmax', 2.0)
-    dnum = kwargs.pop('dnum', 10)
+        Returns list of angular distances.
 
-    try_distances = np.flip(np.geomspace(dmin, dmax, dnum), axis=0)
+        Input:
+        z : array of redshift bins
+        n : number of distances
+        noz : uses the redshift invariant distances
+        verbose : prints the list of distances returned.
+        kwargs: for the no redshift (noz) option, dmin and dmax specifies the
+                upper and lower limit of the distances.
+
+        Output:
+        list of angular distances
+    """
+
+    if noz:
+        dmin= kwargs.pop('dmin', 0.2)
+        dmax = kwargs.pop('dmax', 2.0)
+        try_distances = np.flip(np.geomspace(dmin, dmax, n), axis=0)
+
+    else:
+        phys_anchors = [1., 10., 100.]
+        cosmo = FlatLambdaCDM(H0=69.98, Om0=0.2905, Ob0=0.0473)
+        dc = cosmo.comoving_distance(z)
+        da = dc / (1. + z)
+        ang_anchor = phys_anchors / da * 180. / np.pi
+
+        try_distances = np.flip(np.geomspace(min(ang_anchor.value),
+                                             min(2.5, max(ang_anchor.value)),
+                                             n), axis=0)
 
     if verbose:
        print(try_distances)
@@ -221,9 +243,19 @@ def area(r, x, y, minx, maxx, miny, maxy, vb=True):
 
 ## Calculates volume normalized environment
 def calc_env(ind):
+    """
+        Runs galenv to calculate galaxy environment.
+        This is set up to run in the multiprocessing so a lot of inputs are
+        not set when you call the function, but are supposed to be defined
+        when running this code.
+
+        Output: nearest neighbors at a given angular separation.
+    """
     if opts.run_environment:
+        # Generates environments for GAMA RA/Dec data
         res = [subsamples[f][s]['CATAID'].values[ind]]
     if opts.run_particle_environment:
+        # Generates environments for particle RA/Dec data
         res = [ind]
 
     friends = data
@@ -238,13 +270,16 @@ def calc_env(ind):
 def run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
                    max_iter=5, random_state=0, savefiles=True, outdir='./'):
     """
-        info
+        info - may change waiting
     """
     try_distances = distance_bins(float(str_z))
     str_tryd = [str(i) for i in try_distances]
 
     df = redshift_df(str_z, zenvdf)
-    df = df.loc[(df['lsstr'] > 0) & (df['lssti'] > 0) & (df['lsstz'] > 0)]
+    if float(str_z) < 0.3:
+        df = df.loc[(df['lsstr'] > 0) & (df['lssti'] > 0) & (df['lsstz'] > 0)]
+    else:
+        df = df.loc[(df['lssti'] > 0) & (df['lsstz'] > 0) & (df['lssty'] > 0)]
 
     # the three available filters
     X = df[str_tryd].values
@@ -254,8 +289,12 @@ def run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
 
     df['label'] = km.labels_
 
-    df['r-i'] = df['lsstr']-df['lssti']
-    df['i-z'] = df['lssti']-df['lsstz']
+    if loat(str_z) < 0.3:
+        df['color1'] = df['lsstr']-df['lssti']
+        df['color2'] = df['lssti']-df['lsstz']
+    else:
+        df['color1'] = df['lssti']-df['lsstz']
+        df['color2'] = df['lsstz']-df['lssty']
 
     if savefiles:
         os.makedirs('ts_kmeans', exist_ok=True)
@@ -271,14 +310,30 @@ def run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
 def create_fit_summaries(df, lbl, str_z, iter=1000, chains=4, warmup=500,
                          savefiles=True, outdir='./'):
     """
-        info
+        Takes in a pandas data frame with 2 colors and a magnitude and returns
+        the means and covariance matrix of the corresponding 3D Gaussian distribution.
+
+        Input
+        df :
+        lbl : label
+        str_z :
+
+        iter :
+        chains :
+        warmup :
+        savefiles :
+        outdir :
+
+        Output
+        data frame containing means and covariance matrix
+
         TBD: generalize per redshift bin
     """
     df_l = df.loc[df['label']==lbl]
 
     N = len(df_l)
 
-    vals = df_l[['r-i', 'i-z', 'lsstr']].values
+    vals = df_l[['color1', 'color2', 'lssti']].values
 
     N_re = 1
 
@@ -480,50 +535,52 @@ if __name__ == "__main__":
         except FileNotFoundError:
             print('No enviros.csv file. Must run with --run_env flag to generate.')
 
-    z_string = '0.08'
-    df_w_label = run_clustering(z_string, zenvdf)
+    #z_string = '0.08'
+    for z_string in ['0.042', '0.080', '0.130', '0.221', '0.317', '0.418', '0.525', '0.640']:
+        df_w_label = run_clustering(z_string, zenvdf)
 
-    # create the fit summaries for every label
-    n_clusters = 10
-    label = np.arange(0, n_clusters, 1)
+        # create the fit summaries for every label
+        n_clusters = 10
+        label = np.arange(0, n_clusters, 1)
 
-    for l in label:
-        create_fit_summaries(df_w_label, l, z_string)
+        for l in label:
+            create_fit_summaries(df_w_label, l, z_string)
 
-    if run_particle_environment:
-        particles = pd.read_csv('ang2deg.csv')
+        if run_particle_environment:
+            particles = pd.read_csv('ang2deg.csv')
 
-        try_distances = distance_bins(float(z_string))
+            try_distances = distance_bins(float(z_string))
 
-        rand_indicies = np.random.uniform(low=0, high=len(particles), size=3000)
-        data = particles.iloc[rand_indicies].values
+            nrand = 3000 ## will be updated to function by Malz
+            rand_indicies = np.random.uniform(low=0, high=len(particles), size=nrand)
+            data = particles.iloc[rand_indicies].values
 
-        (minx, maxx) = (np.floor(data[:, 0].min()), np.ceil(data[:, 0].max()))
-        (miny, maxy) = (np.floor(data[:, 1].min()), np.ceil(data[:, 1].max()))
+            (minx, maxx) = (np.floor(data[:, 0].min()), np.ceil(data[:, 0].max()))
+            (miny, maxy) = (np.floor(data[:, 1].min()), np.ceil(data[:, 1].max()))
 
-        nps = mp.cpu_count()
-        pool = mp.Pool(nps - 1)
-        envs_in_field = pool.map(calc_env, range(len(data)))
-        pool.close()
+            nps = mp.cpu_count()
+            pool = mp.Pool(nps - 1)
+            envs_in_field = pool.map(calc_env, range(len(data)))
+            pool.close()
 
-        # List of environments in the particle data
-        envs_in_field = np.array(envs_in_field)
-        #envs_in_field = np.delete(envs_in_field, 0, axis=1)
+            # List of environments in the particle data
+            envs_in_field = np.array(envs_in_field)
+            #envs_in_field = np.delete(envs_in_field, 0, axis=1)
 
-        envs_df = pd.DataFrame(data=envs_in_field,
-                               index = envs_in_field[:, 0],
-                               columns = ['CATAID']+[str(i) for i in try_distances])
+            envs_df = pd.DataFrame(data=envs_in_field,
+                                   index = envs_in_field[:, 0],
+                                   columns = ['CATAID']+[str(i) for i in try_distances])
 
-        if opts.savefile:
-            path = os.path.join(outdir, 'particle_enviros.csv')
-            envs_df.to_csv(path)
+            if opts.savefile:
+                path = os.path.join(outdir, 'particle_enviros.csv')
+                envs_df.to_csv(path)
 
-    else:
-        try:
-            envs_in_field = pd.read_csv('particle_enviros.csv')
-        except FileNotFoundError:
-            print('No particle_enviros.csv file.', \
-                  'Must run with --run_particle flag to generate.')
+        else:
+            try:
+                envs_in_field = pd.read_csv('particle_enviros.csv')
+            except FileNotFoundError:
+                print('No particle_enviros.csv file.', \
+                      'Must run with --run_particle flag to generate.')
 
-    results = get_properties(envs_in_field[:].values[:,1:], str_red)
-    # ra, dec
+        results = get_properties(envs_in_field[:].values[:,1:], str_red)
+        # ra, dec
