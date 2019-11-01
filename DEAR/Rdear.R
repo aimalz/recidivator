@@ -1,7 +1,28 @@
 # 
 # R DEAR :: Density Estimation And Resampling
 # 
-# COIN 2019
+# The serial version is trivial to use. See the DEARsmall function. But this is useless 
+# for the project, and it was written only as an initial sandbox.
+#
+# How to use the parallel version?
+#
+#  First, you need to create the density estimates from an initial set of particles. E.g. :
+#     DEARmiddleAKDE(filename="./Data/pos100000.csv", maxPointsPerPartition=50000, nCores=4, outFileDir="./Data/")
+#
+#  Then, you need to generate the new particles, based on the :
+#     DEARmiddleRejSampler(inFileDir="./Data/", nPointsNew=100000, nCores=4, outFileDir="./Data/")
+# 
+#  The new particles will be in the outFileDir, under several csv files named DEAR_NEWPOSITIONS_XXXX.csv
+# 
+#  You can quickly inspect a scatter plot of the results using the following command: 
+#     plotAllCsvScatter(folder="./Data/")
+#  
+# As of 1st Nov. 2019 only the multicore paralelization is available. MPI will be added,
+# later, if necessary for the project.
+# 
+# COIN 2019. May the stoicism be in you.
+# 
+# Lisbon, 2019.
 # 
 
 require(spatstat)
@@ -53,9 +74,6 @@ DEARmiddleAKDE <- function(filename="./Data/pos10000.csv", maxPointsPerPartition
 	}
 }
 
-
-########################################################################################
-# THIS FUNCTION IS STILL NOT WORKING.
 # This function just resample new points from previously estimated density distributions. 
 # This is a function to use in middle-sized datasets. Only multicore is implemented for the moment.
 DEARmiddleRejSampler <- function(inFileDir="./Data/", nPointsNew=10000, nCores=1, parallelization=c("multicore", "MPI")[1], outFileDir="./Data/") {
@@ -93,20 +111,44 @@ DEARmiddleRejSampler <- function(inFileDir="./Data/", nPointsNew=10000, nCores=1
 	}
 }
 
+# Creates a scatter plot joining together all the csv files from a folder
+plotAllCsvScatter <- function(folder="./Data/", patternToMatch="DEAR_NEW", colorizePerProcess=FALSE) {
+	# Grab the filenames
+	filesToRead <- list.files(folder, pattern=patternToMatch, full.names=TRUE)
+
+	dtF <- c()
+	idxC <- c() # To colorize! 
+	# Read an concatenate
+	for(i in 1:length(filesToRead)) {
+		tmpF <- fread(filesToRead[i])
+		dtF <- rbind(dtF, tmpF)
+		idxC <- c(idxC, rep(i, times=nrow(tmpF)))
+	}
+	
+	if(colorizePerProcess) {
+		plot(dtF$x, dtF$y, pch=19, cex=0.1, asp=1, col=idxC)
+	} else {
+		plot(dtF$x, dtF$y, pch=19, cex=0.1, asp=1, col=rgb(0,0,0,0.2))
+	}	
+}
+
 # This is a function to use in small datasets. Not yet subdividing the space.
-DEARsmallToOutFile <- function(x, y, outfilename="./Data/adapkde.rds") {
+DEARsmallToOutFile <- function(x, y, outfilename="./Data/adapkde.rds", norm=FALSE) {
 	# Boundaries
 	mins <- c(min(x), min(y))
 	maxs <- c(max(x), max(y))
 
-	# Reshape into [0;1]
+	# Pre-process
 	xx <- x
 	yy <- y
-	xx <- xx - min(xx)
-	xx <- xx/max(xx)
-	yy <- yy - min(yy)
-	yy <- yy/max(yy)
-		
+	if(norm) {
+		# Reshape into [0;1]
+		xx <- xx - min(xx)
+		xx <- xx/max(xx)
+		yy <- yy - min(yy)
+		yy <- yy/max(yy)
+	}
+			
 	# Perform the density estimate
 	myDenEst <- doDensEst(xx, yy, FALSE)
 	
@@ -177,7 +219,7 @@ DEARsmall <- function(filename="./Data/pos10000.csv", nPointsNew=1000, createNew
 
 # Density estimation using sparr::bivatiate.density. 
 # Added as an option to use the multiscale version found by Rafa.
-doDensEst <- function(x, y, createPlot=FALSE, multiscale=FALSE, h0=0.01, resolution=128) {	
+doDensEst <- function(x, y, createPlot=FALSE, multiscale=FALSE, h0=0.01, resolution=256) {	
 	myPointData <- ppp(x, y, xrange=range(x), yrange=range(y))
 	if(multiscale) {
 		ddest <- multiscale.density(myPointData, h0=h0)
