@@ -10,7 +10,7 @@
 #     DEARmiddleAKDE(filename="./Data/pos100000.csv", maxPointsPerPartition=50000, nCores=4, outFileDir="./Data/")
 #
 #  Then, you need to generate the new particles, based on the :
-#     DEARmiddleRejSampler(inFileDir="./Data/", nPointsNew=100000, nCores=4, outFileDir="./Data/")
+#     DEARmiddleRejSampler(inFileDir="./Data/", nPointsNew=100000, nCores=4, outFileDir="./Data/", applyGalaxyBias=TRUE, galaxyBiasMeanMultiplier=2)
 # 
 #  The new particles will be in the outFileDir, under several csv files named DEAR_NEWPOSITIONS_XXXX.csv
 # 
@@ -33,8 +33,8 @@ require(doParallel)
 require(scales)
 
 
-# This function just partition the data and compute the kernel density estimates, saving them to files.
-# This is the function to use in middle-sized datasets. Subdividing the space using a quad-tree and multicore processing for the moment.
+# This function just partitions the data and computes the kernel density estimates, saving them to different files.
+# This is the function to use in middle-sized datasets. It partitions the space using a quad-tree and multicore processing (for the moment).
 DEARmiddleAKDE <- function(filename="./Data/pos10000.csv", maxPointsPerPartition=100000, nCores=1, parallelization=c("multicore", "MPI")[1], outFileDir="./Data/") {
 	# Register the parallel backend if necessary
 	if(nCores==1) {
@@ -76,7 +76,7 @@ DEARmiddleAKDE <- function(filename="./Data/pos10000.csv", maxPointsPerPartition
 
 # This function just resample new points from previously estimated density distributions. 
 # This is a function to use in middle-sized datasets. Only multicore is implemented for the moment.
-DEARmiddleRejSampler <- function(inFileDir="./Data/", nPointsNew=10000, nCores=1, parallelization=c("multicore", "MPI")[1], outFileDir="./Data/") {
+DEARmiddleRejSampler <- function(inFileDir="./Data/", nPointsNew=10000, nCores=1, parallelization=c("multicore", "MPI")[1], outFileDir="./Data/", applyGalaxyBias=FALSE, galaxyBiasMeanMultiplier=1) {
 	# Register the parallel backend if necessary
 	if(nCores==1) {
 		registerDoSEQ()
@@ -91,14 +91,21 @@ DEARmiddleRejSampler <- function(inFileDir="./Data/", nPointsNew=10000, nCores=1
 	
 	# Grab the list of regions where the density was estimated beforehand
 	regionsToEstimateDensity <- list.files(inFileDir, pattern=".rds", full.names=TRUE)
+	
+	# If it is necessary to apply the galaxy bias, please do!
+	galBiasThreshold <- 0
+	if(applyGalaxyBias) {
+		 galBiasThreshold <- getGlobalMeanDensity(regionsToEstimateDensity)
+		 galBiasThreshold <- galBiasThreshold * (galaxyBiasMeanMultiplier-1)
+	}
 											
-	# Dispatch the request to perform the sampling in multiple cores,
-	# as registered by the paralelization environment, and write the different files, 
-	# one per region.
+	# Dispatch the request to perform the sampling in multiple cores, as registered by the 
+	# paralelization environment, and write the different files, one per region.
 	pointsPerRegion <- ceiling(nPointsNew/length(regionsToEstimateDensity))
 	foreach(i = 1:length(regionsToEstimateDensity)) %dopar% {
 		DEARsampleFromDensFile(nPoints=pointsPerRegion, infilename=regionsToEstimateDensity[i], 
-							   outfilename=paste(outFileDir,"DEAR_NEWPOSITIONS_",i,".csv",sep="")) 
+							   outfilename=paste(outFileDir,"DEAR_NEWPOSITIONS_",i,".csv",sep=""), 
+							   galBiasThreshold=galBiasThreshold) 
 	}
 
 	# Stop the parallel environment, if necessary
@@ -109,6 +116,18 @@ DEARmiddleRejSampler <- function(inFileDir="./Data/", nPointsNew=10000, nCores=1
 			stop("MPI functionality is not yet implemented. May the patience be with you...")
 		}
 	}
+}
+
+# Get a global mean density
+getGlobalMeanDensity <- function(regs) {
+	myMean <- 0
+	for(i in 1:length(regs)) {
+		# read density file
+		myDensData <- readRDS(infilename)
+		myMean <- myMean + mean(myDensData$kde2d$v)
+	}
+	myMean <- myMean / length(regs)
+	return(myMean)
 }
 
 # Creates a scatter plot joining together all the csv files from a folder
@@ -157,9 +176,15 @@ DEARsmallToOutFile <- function(x, y, outfilename="./Data/adapkde.rds", norm=FALS
 }
 
 # Perform the sampling by reading the density from a file
-DEARsampleFromDensFile <- function(nPoints, infilename="./Data/adapkde.rds", outfilename="./Data/DEAR_REJSAMP.csv") {
+DEARsampleFromDensFile <- function(nPoints, infilename="./Data/adapkde.rds", outfilename="./Data/DEAR_REJSAMP.csv", galBiasThreshold=0) {
 	# read density file
 	myDensData <- readRDS(infilename)
+	
+	# If galBiasThreshold is greater than 0
+	if(galBiasThreshold > 0) {
+		myDensData$kde2d$v[ which(myDensData$kde2d$v < galBiasThreshold) ]  <- galBiasThreshold
+		myDensData$kde2d$v <- rescale(myDensData$kde2d$v, to=c(0,max(myDensData$kde2d$v)))
+	}
 	
 	# Sample the points
 	newPoints <- doRejSamp(myDensData$kde2d, nPoints=nPoints, serial=FALSE)
@@ -219,6 +244,8 @@ DEARsmall <- function(filename="./Data/pos10000.csv", nPointsNew=1000, createNew
 
 # Density estimation using sparr::bivatiate.density. 
 # Added as an option to use the multiscale version found by Rafa.
+# This is the function that needs to become faster! We need a faster adaptative KDE 2D.
+# Resolution and h0 can be tunned also automatically based on the data that was read.
 doDensEst <- function(x, y, createPlot=FALSE, multiscale=FALSE, h0=0.01, resolution=256) {	
 	myPointData <- ppp(x, y, xrange=range(x), yrange=range(y))
 	if(multiscale) {
