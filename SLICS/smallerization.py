@@ -126,12 +126,18 @@ lim_theta = np.sqrt(2. * theta_gama)
 
 def proc_data(which_z):
 
+    z_str = '{:<05}'.format(str(z_SLICS[which_z]))
+
+    print('starting on ' + z_str)
+
     if not which_z in (0, 1, 2):
         print('not equipped for combining files yet!')
         return
 
-    z_str = '{:<05}'.format(str(z_SLICS[which_z]))
     fn_base = 'xv'
+
+# TODO: don't hardcode the file number, set it in response to above calculations of necessary size
+
     fn_index = 21
     fn_ext = '.dat'
     fn = z_str + fn_base + str(fn_index) + fn_ext
@@ -166,7 +172,7 @@ def proc_data(which_z):
                 current_ind = (i1 - 1) + (j1 - 1) * nodes_dim + (k1 - 1) * nodes_dim ** 2
                 node_coords = {'x': i1 - 1, 'y': j1 - 1, 'z': k1 - 1}
                 if fn_index == current_ind:
-                    print('found index '+str(fn_index)+' at '+str((i1, j1, k1)))
+                    # print('found index '+str(fn_index)+' at '+str((i1, j1, k1)))
                     true_node_coords = node_coords
                 all_nodes_coords[node_coords['x'], node_coords['y'], node_coords['z']] = current_ind
 
@@ -251,6 +257,7 @@ def proc_data(which_z):
 
 # plt.hist(cut_data['RA'])
 # plt.hist(cut_data['DEC'])
+    print(str(len(cut_data))+' particles in mock footprint at '+z_str)
 
     cut_data.to_csv(os.path.join(basepath, z_str+'cut.csv'), header=True, index=False, sep=',', columns=['RA', 'DEC'])
 
@@ -263,7 +270,10 @@ def proc_data(which_z):
 # plt.ylabel('DEC (deg)')
     return cut_data
 
+# TODO need to deal with redshifts requiring multiple files next
+which_snapshots = [0, 1, 2]
+
 nps = mp.cpu_count()
 pool = mp.Pool(nps - 1)
-cutting = pool.map(proc_data, [0, 1, 2])
+cutting = pool.map(proc_data, which_snapshots)
 pool.close()
