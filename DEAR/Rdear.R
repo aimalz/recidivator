@@ -47,7 +47,7 @@ DEARmiddleAKDE <- function(filename="/media/CRP6/Cosmology/particle_data/RDEAR_o
 		registerDoSEQ()
 	} else {
 		if(parallelization=="multicore") {
-			cl <- parallel::makeForkCluster(nCores)
+			cl <- parallel::makeForkCluster(nnodes=nCores)
 			doParallel::registerDoParallel(cl)
 		} else if(parallelization=="MPI") {
 			stop("MPI functionality is not yet implemented. May the patience be with you...")
@@ -83,7 +83,7 @@ DEARmiddleAKDE <- function(filename="/media/CRP6/Cosmology/particle_data/RDEAR_o
 # This function just resample new points from previously estimated density distributions. 
 # This is a function to use in middle-sized datasets. Only multicore is implemented for the moment.
 DEARmiddleRejSampler <- function(inFileDir="/media/CRP6/Cosmology/particle_data/RDEAR_output/data_phys_100000/", 
-                                 nPointsNew=10000, nCores=1, 
+                                 nPointsNew=10000, nCores=35, 
                                  parallelization=c("multicore", "MPI")[1], 
                                  outFileDir="/media/CRP6/Cosmology/particle_data/RDEAR_output/data_phys_100000/", 
                                  applyGalaxyBias=FALSE, galaxyBiasMeanMultiplier=1) {
