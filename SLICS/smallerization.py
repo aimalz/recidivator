@@ -59,8 +59,8 @@ dt = np.dtype([('x', dt_each), ('y', dt_each), ('z', dt_each), ('vx', dt_each), 
 # In[ ]:
 
 
-with open(fn, 'rb') as f1:
-    raw_data = np.fromfile(os.path.join(datapath, f1), dtype=dt)
+with open(os.path.join(datapath, fn), 'rb') as f1:
+    raw_data = np.fromfile(f1, dtype=dt)
 
 
 # Throw out first 12 entries as unwanted header information.
