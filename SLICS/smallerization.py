@@ -17,7 +17,7 @@ import os
 import pandas as pd
 
 basepath = 'particle_data'
-datapath = basepath + 'cuillin.roe.ac.uk/~jharno/SLICS/SLICS_HR/LOS1/'
+datapath = os.path.join(basepath, 'cuillin.roe.ac.uk/~jharno/SLICS/SLICS_HR/LOS1/')
 
 # We're only considering the first 8 SLICS snapshots because the GAMA data doesn't have good enough coverage beyond that.
 
