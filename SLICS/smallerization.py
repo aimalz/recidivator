@@ -240,7 +240,7 @@ def proc_data(which_z):
 
     ang_data = phys_data[np.mod(phys_data['z'] - min(phys_data['z']), phys_scale) < depths[which_z]]
 
-    if len(ang_data)
+    # TODO: add a check here for the different cases of combining data files
 
     ang_data['RA'] = ang_data['x'] / d_ang[which_z] * 180. / np.pi
     ang_data['DEC'] = ang_data['y'] / d_ang[which_z] * 180. / np.pi
