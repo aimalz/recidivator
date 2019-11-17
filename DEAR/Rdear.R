@@ -7,12 +7,12 @@
 # How to use the parallel version?
 #
 #  First, you need to create the density estimates from an initial set of particles. E.g. :
-#     DEARmiddleAKDE(filename="/media/CRP6/Cosmology/particle_data/sample_raw_data_phys_100000.csv", maxPointsPerPartition=50000, nCores=35, outFileDir="/media/CRP6/Cosmology/particle_data/RDEAR_output/data_phys_100000/")
+#     DEARmiddleAKDE(filename="/media/CRP6/Cosmology/recidivator/SLICS/particle_data/0.042cut.csv", maxPointsPerPartition=50000, nCores=35, outFileDir="/media2/CRP6/Cosmology/RDEAR_output/0042/")
 #
 #  Then, you need to generate the new particles, based on the :
-#     DEARmiddleRejSampler(inFileDir="/media/CRP6/Cosmology/particle_data/RDEAR_output/data_phys_100000/", 
+#     DEARmiddleRejSampler(inFileDir="/media/CRP6/Cosmology/particle_data/RDEAR_output/data_phys_0042/", 
 #                          nPointsNew=100000, nCores=35, 
-#                          outFileDir="/media/CRP6/Cosmology/particle_data/RDEAR_output/data_phys_100000/", 
+#                          outFileDir="/media/CRP6/Cosmology/particle_data/RDEAR_output/data_phys_0042/", 
 #                          applyGalaxyBias=TRUE, galaxyBiasMeanMultiplier=2)
 # 
 #  The new particles will be in the outFileDir, under several csv files named DEAR_NEWPOSITIONS_XXXX.csv
@@ -38,9 +38,9 @@ require(scales)
 
 # This function just partitions the data and computes the kernel density estimates, saving them to different files.
 # This is the function to use in middle-sized datasets. It partitions the space using a quad-tree and multicore processing (for the moment).
-DEARmiddleAKDE <- function(filename="/media/CRP6/Cosmology/particle_data/RDEAR_output/data_phys_100000/sample_raw_data_phys_100000.csv", 
+DEARmiddleAKDE <- function(filename="/media/CRP6/Cosmology/recidivator/SLICS/particle_data/0.042cut.csv", 
                            maxPointsPerPartition=100000, nCores=35, 
-                           parallelization="multicore", outFileDir="/media/CRP6/Cosmology/particle_data/RDEAR_output/data_phys_100000/") {
+                           parallelization="multicore", outFileDir="./Data/") {
 	# Register the parallel backend if necessary
   print(nCores)
 	if(nCores==1) {
@@ -55,7 +55,7 @@ DEARmiddleAKDE <- function(filename="/media/CRP6/Cosmology/particle_data/RDEAR_o
 	}
 	
 	# Read data
-	myGals <- fread(filename)
+	myGals <- fread(filename, skip=1)
 	
 	# Partition the data in different regions with approximately the same number of objects
 	pointsPartitionIdx <- getNBalancedSpatialPartitionIds(x=myGals$V1, y=myGals$V2, maxN=maxPointsPerPartition)
@@ -82,10 +82,10 @@ DEARmiddleAKDE <- function(filename="/media/CRP6/Cosmology/particle_data/RDEAR_o
 
 # This function just resample new points from previously estimated density distributions. 
 # This is a function to use in middle-sized datasets. Only multicore is implemented for the moment.
-DEARmiddleRejSampler <- function(inFileDir="/media/CRP6/Cosmology/particle_data/RDEAR_output/data_phys_100000/", 
+DEARmiddleRejSampler <- function(inFileDir="Data/", 
                                  nPointsNew=10000, nCores=35, 
                                  parallelization=c("multicore", "MPI")[1], 
-                                 outFileDir="/media/CRP6/Cosmology/particle_data/RDEAR_output/data_phys_100000/", 
+                                 outFileDir="Data/", 
                                  applyGalaxyBias=FALSE, galaxyBiasMeanMultiplier=1) {
 	# Register the parallel backend if necessary
 	if(nCores==1) {
@@ -141,7 +141,7 @@ getGlobalMeanDensity <- function(regs) {
 }
 
 # Creates a scatter plot joining together all the csv files from a folder
-plotAllCsvScatter <- function(folder="/media/CRP6/Cosmology/particle_data/RDEAR_output/data_phys_100000/", 
+plotAllCsvScatter <- function(folder="/media2/CRP6/Cosmology/RDEAR_output/0042/", 
                               patternToMatch="DEAR_NEW", colorizePerProcess=FALSE) {
 	# Grab the filenames
 	filesToRead <- list.files(folder, pattern=patternToMatch, full.names=TRUE)
@@ -163,7 +163,7 @@ plotAllCsvScatter <- function(folder="/media/CRP6/Cosmology/particle_data/RDEAR_
 }
 
 # This is a function to use in small datasets. Not yet subdividing the space.
-DEARsmallToOutFile <- function(x, y, outfilename="./Data/adapkde.rds", norm=FALSE) {
+DEARsmallToOutFile <- function(x, y, outfilename="/media2/CRP6/Cosmology/RDEAR_output/0042/adapkde.rds", norm=FALSE) {
 	# Boundaries
 	mins <- c(min(x), min(y))
 	maxs <- c(max(x), max(y))
@@ -188,8 +188,8 @@ DEARsmallToOutFile <- function(x, y, outfilename="./Data/adapkde.rds", norm=FALS
 
 # Perform the sampling by reading the density from a file
 DEARsampleFromDensFile <- function(nPoints, 
-                                   infilename="/media/CRP6/Cosmology/particle_data/RDEAR_output/data_phys_100000/adapkde.rds", 
-                                   outfilename="/media/CRP6/Cosmology/particle_data/RDEAR_output/data_phys_100000/DEAR_REJSAMP.csv", 
+                                   infilename="/media2/CRP6/Cosmology/RDEAR_output/0042/adapkde.rds", 
+                                   outfilename="/media2/CRP6/Cosmology/RDEAR_output/0042/DEAR_REJSAMP.csv", 
                                    galBiasThreshold=0) {
 	# read density file
 	myDensData <- readRDS(infilename)
@@ -212,7 +212,7 @@ DEARsampleFromDensFile <- function(nPoints,
 }
 
 # This is a function to use in small datasets. Not yet subdividing the space. 
-DEARsmall <- function(filename="./Data/pos10000.csv", nPointsNew=1000, createNewDensity=FALSE, viewPlots=FALSE) {
+DEARsmall <- function(filename="/media2/CRP6/Cosmology/RDEAR_output/0042/pos10000.csv", nPointsNew=1000, createNewDensity=FALSE, viewPlots=FALSE) {
 	# Read data
 	myGals <- fread(filename)
 	
