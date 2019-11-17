@@ -23,7 +23,7 @@ intensity <- Ohdear$kde2d$v # read intensity values, as a Matrix 128 x 128
 # Visualize matrix via lattice
 #png(filename = paste(plotdir,"DEAR_AKDE_",number,".png",sep=""))
 #print(levelplot(intensity,panel = panel.levelplot.raster,
-          col.regions = rev(gray(0:100/100))))
+#          col.regions = rev(gray(0:100/100))))
 #dev.off()
 
 # If reshaping is needed, then go ahead
