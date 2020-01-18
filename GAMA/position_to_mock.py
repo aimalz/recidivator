@@ -165,10 +165,9 @@ def redshift_df(str_z, zenvdf, datadir='./'):
     df = pd.merge(phodf, zenvdf, on=['CATAID'])
     return df
 
-def distance_bins(z, n=10, noz=False, verbose=False, **kwargs): ### NOTE: I REWROTE THIS
+def distance_bins(z, btype='noz', n=10, noz=False, verbose=False, **kwargs): ### NOTE: I REWROTE THIS
     """
         Returns list of angular distances.
-
         Input:
         z : array of redshift bins
         n : number of distances
@@ -176,12 +175,11 @@ def distance_bins(z, n=10, noz=False, verbose=False, **kwargs): ### NOTE: I REWR
         verbose : prints the list of distances returned.
         kwargs: for the no redshift (noz) option, dmin and dmax specifies the
                 upper and lower limit of the distances.
-
         Output:
         list of angular distances
     """
 
-    if noz:
+    if 'noz' in btype:
         dmin= kwargs.pop('dmin', 0.2)
         dmax = kwargs.pop('dmax', 2.0)
         try_distances = np.flip(np.geomspace(dmin, dmax, n), axis=0)
@@ -192,13 +190,12 @@ def distance_bins(z, n=10, noz=False, verbose=False, **kwargs): ### NOTE: I REWR
         dc = cosmo.comoving_distance(z)
         da = dc / (1. + z)
         ang_anchor = phys_anchors / da * 180. / np.pi
-
         try_distances = np.flip(np.geomspace(min(ang_anchor.value),
                                              min(2.0, max(ang_anchor.value)),
                                              n), axis=0)
 
     if verbose:
-       print(try_distances)
+        print(try_distances)
 
     return try_distances
 
@@ -275,11 +272,15 @@ def calc_env(ind):
 
 ### Clustering function
 def run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
-                   max_iter=5, random_state=0, savefiles=True, outdir='./'):
+                   max_iter=5, random_state=0, savefiles=True, outdir='./',
+                   **kwargs):
     """
         info - may change waiting
     """
-    try_distances = distance_bins(float(str_z))
+    btype = kwargs.pop('btype', 'noz')
+    n = kwargs.pop('n', 10)
+
+    try_distances = distance_bins(float(str_z), btype=btype, n=n)
     str_tryd = [str(i) for i in np.arange(1, 11)]
 
     df = redshift_df(str_z, zenvdf)
@@ -304,9 +305,11 @@ def run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
         df['color2'] = df['lsstz'] - df['lssty']
 
     if savefiles:
-        os.makedirs('ts_kmeans', exist_ok=True)
+        path_dir = os.path.join(outdir, 'ts_kmeans')
+        os.makedirs(path_dir, exist_ok=True)
         filename = 'ts_kmeans/tskmeans_%s.pkl' % str_z
-        pickle.dump(km, open(filename, 'wb'))
+        path_filename = os.path.join(outdir, filename)
+        pickle.dump(km, open(path_filename, 'wb'))
 
         path = os.path.join(outdir, 'Redshift_df_label_%s.csv' % str_z)
         df.to_csv(path)
@@ -379,7 +382,7 @@ def create_fit_summaries(df, lbl, str_z, iter=1000, chains=4, warmup=500,
 
 
 ## Given environment curves for particle data return galaxy properties
-def get_label(n_r, str_redshift, verbose=False):
+def get_label(n_r, str_redshift, verbose=False, indir='./'):
     """
         n_r: array of number of neighbors at same radii as TS Kmeans was trained
         redshift: redshift bin to get model
@@ -388,7 +391,8 @@ def get_label(n_r, str_redshift, verbose=False):
         """
 
     filename = 'ts_kmeans/tskmeans_%s.pkl'% str_redshift
-    km = pickle.load(open(filename, 'rb'))
+    path = os.path.join(indir, filename)
+    km = pickle.load(open(path, 'rb'))
     if len(n_r.shape) == 1:
         predicted = km.predict(n_r.reshape(1, -1))
     else:
@@ -399,21 +403,30 @@ def get_label(n_r, str_redshift, verbose=False):
 
     return predicted
 
-def get_random_sample(label, str_redshift):
+def get_random_sample(label, str_redshift, indir='./'):
     from scipy.stats import multivariate_normal
     rando = []
     for l in label:
-        summary = pd.read_csv('fit_summaries/summary_%s_label_%s.csv' %(str_redshift, label[0]))
+        path = os.path.join(indir, 'fit_summaries/summary_%s_label_%s.csv' %(str_redshift, label[0]))
+        summary = pd.read_csv(path)
         mus = summary.iloc[:3]['mean'].values
         cov = summary.iloc[3:]['mean'].values.reshape(3, 3)
 
         rando.append(multivariate_normal.rvs(mus, cov))
     return rando
 
-def get_properties(n_r, str_redshift, verbose=False):
-    l = get_label(n_r, str_redshift, verbose=verbose)
-    samp = get_random_sample(l, str_redshift)
-    return samp
+def get_properties(n_r, str_redshift, verbose=False, indir='./',
+                   savefiles=True, outdir='./'):
+    l = get_label(n_r, str_redshift, verbose=verbose, indir=indir)
+    samp = get_random_sample(l, str_redshift, indir=indir)
+
+    samp_pd = pd.DataFrame(samp, columns=['color1', 'color2', 'lssti'])
+
+    if savefiles:
+        path = os.path.join(outdir, 'results_%s' % str_redshift)
+        samp_pd.to_csv(path)
+
+    return samp_pd
 
 ### Plotting routines
 def make_orchestra(z, zenvdf, savefig=True, verbose=False):
@@ -510,6 +523,12 @@ if __name__ == "__main__":
     parser.add_argument('--no_files', dest='savefile',
                         default=True, action='store_false')
     parser.add_argument('--outdir', default='./')
+    parser.add_argument('--radii', dest='radial_binning',
+                        default='noz')
+    parser.add_argument('--bins', dest='n',
+                        default=10)
+    parser.add_argument('--run_all',
+                        default=False, action='store_true')
     parser.add_argument('--run_env', dest='run_environment',
                         default=False, action='store_true')
     parser.add_argument('--gen_summaries', dest='generate_fit_summaries',
@@ -525,8 +544,7 @@ if __name__ == "__main__":
 
     create_redshift_data(df, z_SLICS)
 
-    if opts.run_environment:
-        n = 10
+    if opts.run_environment or opts.run_all:
         z_bins = redshift_bins(z_SLICS)
 
         RA_bin_ends = [0., 80., 160., 200., 360.]
@@ -552,7 +570,9 @@ if __name__ == "__main__":
         for f in range(len(subsamples)):
             (minx, maxx, miny, maxy) = field_bounds[f]
             for s in range(len(subsamples[f])) :
-                try_distances = distance_bins(z_SLICS[s], n=n)
+                try_distances = distance_bins(z_SLICS[s],
+                                              btype=opts.radial_binning,
+                                              n=opts.n)
                 assert(max(try_distances) <= min((maxx - minx), (maxy - miny)) / 2.)
                 if opts.verbose:
                     print(lens[f][s])
@@ -575,7 +595,8 @@ if __name__ == "__main__":
                     pool.close()
 
         envs_arr = np.array(all_envs)
-        envs_df = pd.DataFrame(data=envs_arr, index = envs_arr[:, 0], columns = ['CATAID']+[str(i) for i in np.arange(1, n+1)])
+        envs_df = pd.DataFrame(data=envs_arr, index = envs_arr[:, 0],
+                               columns = ['CATAID']+[str(i) for i in np.arange(1, opts.n+1)])
 
         zenvdf = pd.merge(envs_df, df, on='CATAID')
 
@@ -584,26 +605,31 @@ if __name__ == "__main__":
             zenvdf.to_csv(path)
     else:
         try:
-            zenvdf = pd.read_csv('enviros.csv') # note: need specify location
+            path_enviros = os.path.join(opts.outdir, 'enviros.csv')
+            zenvdf = pd.read_csv(path_enviros)
         except FileNotFoundError:
             print('No enviros.csv file. Must run with --run_env flag to generate.')
 
-    if opts.run_particle_environment:
+    if opts.run_particle_environment or opts.run_all:
         particles = pd.read_csv('ang2deg.csv')
 
     for z_string in ['0.042', '0.080', '0.130', '0.221', '0.317', '0.418', '0.525', '0.640']:
-        if opts.generate_fit_summaries:
-            df_w_label = run_clustering(z_string, zenvdf)
+        if opts.generate_fit_summaries or opts.run_all:
+            df_w_label = run_clustering(z_string, zenvdf,
+                                        btype=opts.radial_binning,
+                                        outdir=opts.outdir)
 
             # create the fit summaries for every label
             n_clusters = 10
             label = np.arange(0, n_clusters, 1)
 
             for l in label:
-                create_fit_summaries(df_w_label, l, z_string)
+                create_fit_summaries(df_w_label, l, z_string, outdir=opts.outdir)
 
-        if opts.run_particle_environment:
-            try_distances = distance_bins(float(z_string))
+        if opts.run_particle_environment or opts.run_all:
+            try_distances = distance_bins(float(z_string),
+                                          btype=opts.radial_binning,
+                                          n=opts.n)
 
             nrand = 3000 ## will be updated to function by Malz
             rand_indicies = np.random.uniform(low=0, high=len(particles), size=nrand)
@@ -622,8 +648,8 @@ if __name__ == "__main__":
             #envs_in_field = np.delete(envs_in_field, 0, axis=1)
 
             envs_df = pd.DataFrame(data=envs_in_field,
-                                   index = envs_in_field[:, 0],
-                                   columns = ['CATAID']+[str(i) for i in try_distances])
+                                   index=envs_in_field[:, 0],
+                                   columns=['CATAID']+[str(i) for i in try_distances])
 
             if opts.savefile:
                 path = os.path.join(opts.outdir, 'particle_enviros_%s.csv' % z_string)
@@ -631,10 +657,13 @@ if __name__ == "__main__":
 
         else:
             try:
-                envs_df = pd.read_csv('particle_enviros_%s.csv' % z_string)
+                path_partenviros = os.path.join(opts.outdir,
+                                            'particle_enviros_%s.csv' % z_string)
+                envs_df = pd.read_csv(path_partenviros)
             except FileNotFoundError:
                 print('No particle_enviros_%s.csv file.' % z_string, \
                       'Must run with --run_particle flag to generate.')
 
         # The results are a mock catalog
-        results = get_properties(envs_df[:].values[:,1:], z_string)
+        results = get_properties(envs_df[:].values[:,1:], z_string,
+                                 opts.savefile, opts.outdir)
