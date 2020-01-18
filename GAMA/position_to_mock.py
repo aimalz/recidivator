@@ -165,33 +165,49 @@ def redshift_df(str_z, zenvdf, datadir='./'):
     df = pd.merge(phodf, zenvdf, on=['CATAID'])
     return df
 
-def distance_bins(z, btype='noz', n=10, noz=False, verbose=False, **kwargs): ### NOTE: I REWROTE THIS
+def distance_bins(z, btype, n=10, verbose=False, **kwargs):
     """
         Returns list of angular distances.
+
         Input:
         z : array of redshift bins
+        btype : kind of bins to use.
+        options: 'noz'       - use same angular distance over all z, n bins
+        'physical'  - use same physical coordinates over all z, n bins total.
+                     low z does not have all n but a fraction
+                     and high-z has all n.
+        'changez'   - for each redshift bin, find the angular distance
+                      corresponding to 1 Mpc and the one that either corresponds
+                      to 100 Mpc or 2.5 deg (whichever is smaller) and create
+                      n number of bins per redshift.
         n : number of distances
-        noz : uses the redshift invariant distances
         verbose : prints the list of distances returned.
         kwargs: for the no redshift (noz) option, dmin and dmax specifies the
-                upper and lower limit of the distances.
+        upper and lower limit of the distances.
+
         Output:
         list of angular distances
-    """
+        """
+
+    cosmo = FlatLambdaCDM(H0=69.98, Om0=0.2905, Ob0=0.0473)
+    phys_anchors = [1., 10., 100.]
+    dc = cosmo.comoving_distance(z)
+    da = dc / (1. + z)
+    ang_anchor = phys_anchors / da * 180. / np.pi
 
     if 'noz' in btype:
         dmin= kwargs.pop('dmin', 0.2)
-        dmax = kwargs.pop('dmax', 2.0)
+        dmax = kwargs.pop('dmax', 2.5)
         try_distances = np.flip(np.geomspace(dmin, dmax, n), axis=0)
 
-    else:
-        phys_anchors = [1., 10., 100.]
-        cosmo = FlatLambdaCDM(H0=69.98, Om0=0.2905, Ob0=0.0473)
-        dc = cosmo.comoving_distance(z)
-        da = dc / (1. + z)
-        ang_anchor = phys_anchors / da * 180. / np.pi
+    if 'physical' in btype:
+        phys_spacing = np.flip(np.geomspace(1., 60., n), axis=0)
+        ang_spacing = phys_spacing / da.value * 180. / np.pi
+        try_distances = ang_spacing[np.where(ang_spacing < 2.5)[0]]
+
+    if 'changez' in btype:
         try_distances = np.flip(np.geomspace(min(ang_anchor.value),
-                                             min(2.0, max(ang_anchor.value)),
+                                             min(2.5, max(ang_anchor.value)),
                                              n), axis=0)
 
     if verbose:
@@ -281,7 +297,7 @@ def run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
     n = kwargs.pop('n', 10)
 
     try_distances = distance_bins(float(str_z), btype=btype, n=n)
-    str_tryd = [str(i) for i in np.arange(1, 11)]
+    str_tryd = [str(i) for i in np.arange(1, len(try_distances)+1)]
 
     df = redshift_df(str_z, zenvdf)
     if float(str_z) < 0.3:
@@ -586,7 +602,7 @@ if __name__ == "__main__":
                     if len(try_distances) < opts.n:
                         new_envs_in_field = []
                         for envs in envs_in_field:
-                            envs += [''] * (n - len(try_distances))
+                            envs += [''] * (opts.n - len(try_distances))
                             new_envs_in_field.append(envs)
                         envs_in_field = new_envs_in_field
                     all_envs = all_envs + envs_in_field
@@ -595,6 +611,9 @@ if __name__ == "__main__":
         envs_arr = np.array(all_envs)
         envs_df = pd.DataFrame(data=envs_arr, index = envs_arr[:, 0],
                                columns = ['CATAID']+[str(i) for i in np.arange(1, opts.n+1)])
+
+        envs_df['CATAID']=envs_df['CATAID'].astype(int)
+        df['CATAID']=df['CATAID'].astype(int)
 
         zenvdf = pd.merge(envs_df, df, on='CATAID')
 
@@ -664,4 +683,6 @@ if __name__ == "__main__":
 
         # The results are a mock catalog
         results = get_properties(envs_df[:].values[:,1:], z_string,
-                                 opts.savefile, opts.outdir)
+                                 indir=opts.outdir,
+                                 savefiles=opts.savefile,
+                                 outdir=opts.outdir)
