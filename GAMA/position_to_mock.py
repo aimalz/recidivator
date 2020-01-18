@@ -527,8 +527,6 @@ if __name__ == "__main__":
                         default='noz')
     parser.add_argument('--bins', dest='n',
                         default=10)
-    parser.add_argument('--run_all',
-                        default=False, action='store_true')
     parser.add_argument('--run_env', dest='run_environment',
                         default=False, action='store_true')
     parser.add_argument('--gen_summaries', dest='generate_fit_summaries',
@@ -544,7 +542,7 @@ if __name__ == "__main__":
 
     create_redshift_data(df, z_SLICS)
 
-    if opts.run_environment or opts.run_all:
+    if opts.run_environment:
         z_bins = redshift_bins(z_SLICS)
 
         RA_bin_ends = [0., 80., 160., 200., 360.]
@@ -585,7 +583,7 @@ if __name__ == "__main__":
                     nps = mp.cpu_count()
                     pool = mp.Pool(nps - 1)
                     envs_in_field = pool.map(calc_env, range(len(data)))
-                    if len(try_distances) < n:
+                    if len(try_distances) < opts.n:
                         new_envs_in_field = []
                         for envs in envs_in_field:
                             envs += [''] * (n - len(try_distances))
@@ -610,11 +608,11 @@ if __name__ == "__main__":
         except FileNotFoundError:
             print('No enviros.csv file. Must run with --run_env flag to generate.')
 
-    if opts.run_particle_environment or opts.run_all:
+    if opts.run_particle_environment:
         particles = pd.read_csv('ang2deg.csv')
 
     for z_string in ['0.042', '0.080', '0.130', '0.221', '0.317', '0.418', '0.525', '0.640']:
-        if opts.generate_fit_summaries or opts.run_all:
+        if opts.generate_fit_summaries:
             df_w_label = run_clustering(z_string, zenvdf,
                                         btype=opts.radial_binning,
                                         outdir=opts.outdir)
@@ -626,7 +624,7 @@ if __name__ == "__main__":
             for l in label:
                 create_fit_summaries(df_w_label, l, z_string, outdir=opts.outdir)
 
-        if opts.run_particle_environment or opts.run_all:
+        if opts.run_particle_environment:
             try_distances = distance_bins(float(z_string),
                                           btype=opts.radial_binning,
                                           n=opts.n)
