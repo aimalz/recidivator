@@ -31,6 +31,9 @@ z_SLICS = np.array([0.042, 0.080, 0.130, 0.221, 0.317, 0.418, 0.525, 0.640,
                     0.764, 0.897, 1.041, 1.199, 1.372, 1.562, 1.772, 2.007,
                     2.269, 2.565, 2.899])
 
+# Define cosmology
+cosmo = FlatLambdaCDM(H0=69.98, Om0=0.2905, Ob0=0.0473)
+
 ## Define a color map
 colmap = 'Spectral_r'
 
@@ -189,7 +192,6 @@ def distance_bins(z, btype, n=10, verbose=False, **kwargs):
         list of angular distances
         """
 
-    cosmo = FlatLambdaCDM(H0=69.98, Om0=0.2905, Ob0=0.0473)
     phys_anchors = [1., 10., 100.]
     dc = cosmo.comoving_distance(z)
     da = dc / (1. + z)
@@ -201,8 +203,10 @@ def distance_bins(z, btype, n=10, verbose=False, **kwargs):
         try_distances = np.flip(np.geomspace(dmin, dmax, n), axis=0)
 
     if 'physical' in btype:
-        phys_spacing = np.flip(np.geomspace(1., 60., n), axis=0)
+        phys_spacing = np.flip(np.geomspace(1., 55., n), axis=0)
         ang_spacing = phys_spacing / da.value * 180. / np.pi
+        if 'physical' in kwargs.keys():
+            return phys_spacing
         try_distances = ang_spacing[np.where(ang_spacing < 2.5)[0]]
 
     if 'changez' in btype:
@@ -445,21 +449,29 @@ def get_properties(n_r, str_redshift, verbose=False, indir='./',
     return samp_pd
 
 ### Plotting routines
-def make_orchestra(z, zenvdf, savefig=True, verbose=False):
+def make_orchestra(z, zenvdf, btype='noz', savefig=True, verbose=False):
     # Still some color map issues and need to generalize for redshifts.
-    try_distances = distance_bins(z[0])
-    orig_distances = np.flip(try_distances, axis=0)
 
     color = color_map(z, vmin=z[0], vmax=z[-1])
     cNorm  = colors.Normalize(vmin=z[0], vmax=z[-1])
 
     fig, ax = plt.subplots(figsize=(15,10))
+
     for n, z in enumerate(z):
+        try_distances = distance_bins(z, btype=btype)
+        orig_distances = np.flip(try_distances, axis=0)
+
+        inx_td = [str(i) for i in np.arange(1, len(try_distances)+1)]
+        orig_inx_td = np.flip(inx_td, axis=0)
+
         df = redshift_df(str(z), zenvdf)
         if len(df) > 0:
             for i in range(len(orig_distances)):
-                parts = ax.violinplot(df[str(orig_distances[i])], positions=[i])
-                np.where(df[str(orig_distances[i])] < 1)
+                if 'changez' in btype:
+                    parts = ax.violinplot(df[orig_inx_td[i]], positions=[orig_distances[i]])
+                else:
+                    parts = ax.violinplot(df[orig_inx_td[i]], positions=[i])
+
                 c = color[n]
                 for pc in parts['bodies']:
                     pc.set_facecolor(c)
@@ -478,27 +490,45 @@ def make_orchestra(z, zenvdf, savefig=True, verbose=False):
             if verbose:
                 print("I have nothing for you at n=%s, z=%s"%(n,z))
 
-    plt.xticks(range(len(orig_distances)), np.around(orig_distances, 3))
+    if 'physical' in btype:
+        plt.xticks(range(len(orig_distances)), np.around(np.flip(distance_bins(z, btype='physical', physical=True)), 3))
+        ax.set_xlabel('physical distance [Mpc]', size=15)
+    elif 'changez' in btype:
+        ax.set_xlabel('radial distance [deg]', size=15)
+    else:
+        plt.xticks(range(len(orig_distances)), np.around(orig_distances, 3))
+        ax.set_xlabel('radial distance [deg]', size=15)
+
     ax.semilogy()
-    ax.set_xlabel('radial distance [deg]', size=15)
     ax.set_ylabel('Normalized number of neighbors', size=15)
 
     cax, _ = matplotlib.colorbar.make_axes(ax, pad=0.01)
     cbar = matplotlib.colorbar.ColorbarBase(cax, cmap=plt.cm.Spectral_r, norm=cNorm)
     cbar.ax.set_ylabel('redshift', size=12)
 
-    plt.tight_layout()
-
     if savefig:
         plt.savefig('orchestra_neighbor_v_distance.pdf')
     return
 
 
-def make_ang_phys_plot(savefig=True):
+def make_ang_phys_plot(z_SLICS, n=10, savefig=True):
     fig, ax = plt.subplots()
     ang_dist_grid = []
-    for i in range(len(z_SLICS[0:8])):
-        try_distances = distance_bins(z, n=10)
+
+    color = color_map(z_SLICS, vmin=z_SLICS[0], vmax=z_SLICS[-1])
+    cNorm  = colors.Normalize(vmin=z_SLICS[0], vmax=z_SLICS[-1])
+
+    phys_anchors = [1., 10., 100.]
+    ang_anchors = []
+    for z in z_SLICS:
+        dc = cosmo.comoving_distance(z)
+        da = dc / (1 + z)
+        ang_anchor = phys_anchors / da * 180. / np.pi
+        ang_anchors.append(ang_anchor)
+
+    for i in range(len(z_SLICS)):
+        try_distances = np.flip(np.geomspace(min(ang_anchors[i].value),
+                                             min(2.5, max(ang_anchors[i].value)), 100), axis=0)
 
         dc = cosmo.comoving_distance(z_SLICS[i])
         da = dc / (1 + z_SLICS[i])
@@ -507,23 +537,21 @@ def make_ang_phys_plot(savefig=True):
 
     ax.semilogx()
 
-    # need to update this once we figure out which radii to use
-    ax.axvline(1, c='grey', alpha=0.4)
-    ax.axvline(2, c='grey', alpha=0.4)
-    ax.axvline(3, c='grey', alpha=0.4)
-    ax.axvline(5, c='grey', alpha=0.4)
-    ax.axvline(8, c='grey', alpha=0.4)
-    ax.axvline(20, c='grey', alpha=0.4)
-    ax.axvline(40, c='grey', alpha=0.4)
-    ax.axvline(60, c='grey', alpha=0.4)
+    for i in np.flip(distance_bins(z_SLICS[0], n=n,
+                                   btype='physical', physical=True), axis=0):
+        ax.axvline(i, c='grey', alpha=0.7)
+
+    for j in np.flip(distance_bins(z_SLICS[0], n=n,
+                     btype='noz'), axis=0):
+           ax.axhline(j, ls='--', c='grey', alpha=0.4)
 
     ax.set_ylabel('Angular distances', fontsize=13)
     ax.set_xlabel('Physical scales [Mpc]', fontsize=13)
 
-    plt.setp(ax, xticks=([1, 5, 10, 50, 70]), xticklabels=([1, 5, 10, 50, 70]))
+    plt.setp(ax, xticks=([1, 2, 5, 10, 25, 60]), xticklabels=([1, 2, 5, 10, 25, 60]))
 
     cax, _ = matplotlib.colorbar.make_axes(ax, pad=0.01)
-    cbar = matplotlib.colorbar.ColorbarBase(cax, cmap=jet, norm=cNorm)
+    cbar = matplotlib.colorbar.ColorbarBase(cax, cmap=plt.cm.Spectral_r, norm=cNorm)
     cbar.ax.set_ylabel('redshift', size=12)
     if savefig:
         plt.savefig('physical_scale_v_angular_distance.pdf')
@@ -630,7 +658,7 @@ if __name__ == "__main__":
     if opts.run_particle_environment:
         particles = pd.read_csv('ang2deg.csv')
 
-    for z_string in ['0.042', '0.080', '0.130', '0.221', '0.317', '0.418', '0.525', '0.640']:
+    for z_string in ['0.042', '0.080', '0.130', '0.221', '0.317', '0.418', '0.525']:
         if opts.generate_fit_summaries:
             df_w_label = run_clustering(z_string, zenvdf,
                                         btype=opts.radial_binning,
@@ -662,7 +690,6 @@ if __name__ == "__main__":
 
             # List of environments in the particle data
             envs_in_field = np.array(envs_in_field)
-            #envs_in_field = np.delete(envs_in_field, 0, axis=1)
 
             envs_df = pd.DataFrame(data=envs_in_field,
                                    index=envs_in_field[:, 0],
