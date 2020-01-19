@@ -408,7 +408,7 @@ def get_label(n_r, str_redshift, verbose=False, indir='./'):
         redshift: redshift bin to get model
 
         returns: label in an array
-        """
+    """
 
     filename = 'ts_kmeans/tskmeans_%s.pkl'% str_redshift
     path = os.path.join(indir, filename)
@@ -424,6 +424,14 @@ def get_label(n_r, str_redshift, verbose=False, indir='./'):
     return predicted
 
 def get_random_sample(label, str_redshift, indir='./'):
+    """
+        label: Cluster label
+        str_redshift: redshift bin to get model as a string
+        indir: Where to find the fit summaries
+
+        returns: random draws in an array
+    """
+
     from scipy.stats import multivariate_normal
     rando = []
     for l in label:
@@ -437,6 +445,20 @@ def get_random_sample(label, str_redshift, indir='./'):
 
 def get_properties(n_r, str_redshift, verbose=False, indir='./',
                    savefiles=True, outdir='./'):
+    """
+        Combines chosing label and generating a random sample to
+           generate the mock catalog
+
+        n_r: array of number of neighbors at same radii as TS Kmeans was trained
+        str_redshift: redshift bin to get model as a string
+        verbose: print label
+        indir: Where to find fit_summaries
+        savefiles: Save the mock catalog
+        outdir: location to save the mock catalog
+
+        returns: Mock catalog
+    """
+
     l = get_label(n_r, str_redshift, verbose=verbose, indir=indir)
     samp = get_random_sample(l, str_redshift, indir=indir)
 
@@ -450,7 +472,17 @@ def get_properties(n_r, str_redshift, verbose=False, indir='./',
 
 ### Plotting routines
 def make_orchestra(z, zenvdf, btype='noz', savefig=True, verbose=False):
-    # Still some color map issues and need to generalize for redshifts.
+    """
+        Generates the orchestra plot for a given bin type
+
+        z: List of redshifts to include
+        zenvdf: environment file containing the nearest neighbors (run_env)
+        btype: Type of binning used to probe the  nearest neighbors
+        savefig: save the figure
+        verbose: print warnings
+
+        returns: Plot
+    """
 
     color = color_map(z, vmin=z[0], vmax=z[-1])
     cNorm  = colors.Normalize(vmin=z[0], vmax=z[-1])
@@ -512,6 +544,16 @@ def make_orchestra(z, zenvdf, btype='noz', savefig=True, verbose=False):
 
 
 def make_ang_phys_plot(z_SLICS, n=10, savefig=True):
+    """
+        Generates the plot illustrating different bin typs
+
+        z_SLICS: List of redshifts to include
+        n: Number of radial bins to try to include
+        savefig: save the figure
+
+        returns: Plot
+    """
+
     fig, ax = plt.subplots()
     ang_dist_grid = []
 
@@ -555,6 +597,64 @@ def make_ang_phys_plot(z_SLICS, n=10, savefig=True):
     cbar.ax.set_ylabel('redshift', size=12)
     if savefig:
         plt.savefig('physical_scale_v_angular_distance.pdf')
+    return
+
+def compare_environ_curves(str_red, zenvdf, btype, n=10, num=4000, indir='./', savefig=True):
+    """
+        Generates the plot that compares environment curves of simulations
+        to environment curves from GAMA at a given redshift.
+
+        str_red: Single redshift as a string
+        zenvdf: environment file containing the nearest neighbors from particle
+                data (run_particle)
+        btype: Type of binning used to probe the  nearest neighbors
+        n: number of bins
+        num: Number of random samples
+        indir: Location of particle data
+        savefig: save the figure
+
+        returns: Plot
+    """
+
+    df = redshift_df(str_red, zenvdf)
+
+    path_partenviros = os.path.join(indir,
+                                    'particle_enviros_%s.csv' % str_red)
+    envs_df = pd.read_csv(path_partenviros)
+    envs_in_field = envs_df.to_numpy()
+
+    try_distances = distance_bins(float(str_red),
+                                  btype=btype,
+                                  n=n)
+    orig_distances = np.flip(try_distances, axis=0)
+
+    fig = plt.figure(figsize=(11,10))
+    for i in range(int(len(envs_in_field[:,1:])/3.)):
+        plt.loglog(try_distances, envs_in_field[i,1:], alpha=0.1, color='r')
+
+    # repeat of the last one to get the legend
+    plt.loglog(try_distances, envs_in_field[i,1:],
+               alpha=0.1, color='r', label='Simulation')
+
+    # Randomly choose 4000 to match the number chosen from the particle data
+    ## but only plot the same number as the number plotted for the sims
+    rand_gals = np.random.uniform(low=0, high=len(df), size=num)
+
+    for index, row in df.iloc[rand_gals].iterrows():
+        if index < int(len(envs_in_field[:,1:])/3.):
+            dist = [str(i) for i in np.arange(len(orig_distances))]
+            plt.loglog(orig_distances, row[dist], 'o-k', alpha=0.2)
+
+    # repeat of the last one to get the legend
+    plt.loglog(orig_distances, row[dist],
+               'o-k', alpha=0.2, label='Real Galaxies')
+
+    plt.xlabel('radial distance', size=15)
+    plt.ylabel('# neighbors', size=15)
+    plt.legend()
+
+    if savefig:
+        plt.savefig('environ_curve_sim_v_real_%s.pdf' % str_red)
     return
 
 #### End Plotting routines
