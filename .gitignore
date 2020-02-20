@@ -108,3 +108,7 @@ venv.bak/
 *.csv
 *.fits
 *.zip
+
+# plots
+*.png
+*.pdf
