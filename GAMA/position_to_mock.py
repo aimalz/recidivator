@@ -318,11 +318,9 @@ def run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
     df['label'] = km.labels_
 
     if float(str_z) < 0.3:
-        df['color1'] = df['lsstr'] - df['lssti']
-        df['color2'] = df['lssti'] - df['lsstz']
+        df['mag3'] = df['lsstr']
     else:
-        df['color1'] = df['lssti'] - df['lsstz']
-        df['color2'] = df['lsstz'] - df['lssty']
+        df['mag3'] = df['lssty']
 
     if savefiles:
         path_dir = os.path.join(outdir, 'ts_kmeans')
@@ -363,7 +361,7 @@ def create_fit_summaries(df, lbl, str_z, iter=1000, chains=4, warmup=500,
 
     N = len(df_l)
 
-    vals = df_l[['color1', 'color2', 'lssti']].values
+    vals = df_l[['lssti', 'lsstz', 'mag3']].values
 
     N_re = 1
 
@@ -443,7 +441,7 @@ def get_random_sample(label, str_redshift, indir='./'):
         rando.append(multivariate_normal.rvs(mus, cov))
     return rando
 
-def get_properties(n_r, str_redshift, verbose=False, indir='./',
+def get_properties(n_r, str_redshift, ra=None, dec=None, verbose=False, indir='./',
                    savefiles=True, outdir='./'):
     """
         Combines chosing label and generating a random sample to
@@ -462,11 +460,25 @@ def get_properties(n_r, str_redshift, verbose=False, indir='./',
     l = get_label(n_r, str_redshift, verbose=verbose, indir=indir)
     samp = get_random_sample(l, str_redshift, indir=indir)
 
-    samp_pd = pd.DataFrame(samp, columns=['color1', 'color2', 'lssti'])
+    if ra is not None:
+        radec = np.vstack((ra, dec)).T
+        samp1 = np.concatenate((radec, samp), axis=1)
+        samp_pd = pd.DataFrame(samp1, columns=['ra', 'dec', 'mag3', 'lssti', 'lsstz'])
+    else:
+        samp_pd = pd.DataFrame(samp, columns=['lssti', 'lsstz', 'mag3'])
+
+    if float(str_redshift) < 0.3:
+        samp_pd.rename(columns={'mag3': 'mag_r_lsst',
+                                'lssti': 'mag_i_lsst',
+                                'lsstz': 'mag_z_lsst'}, inplace=True)
+    else:
+        samp_pd.rename(columns={'lssti': 'mag_i_lsst',
+                                'lsstz': 'mag_z_lsst',
+                                'mag3': 'mag_y_lsst'}, inplace=True)
 
     if savefiles:
-        path = os.path.join(outdir, 'results_%s' % str_redshift)
-        samp_pd.to_csv(path)
+        path = os.path.join(outdir, 'results_%s.csv' % str_redshift)
+        samp_pd.to_csv(path, index=False)
 
     return samp_pd
 
@@ -657,6 +669,8 @@ def compare_environ_curves(str_red, zenvdf, btype, n=10, num=4000, indir='./', s
         plt.savefig('environ_curve_sim_v_real_%s.pdf' % str_red)
     return
 
+## TBD: corner plot comparing GAMA to mocks
+
 #### End Plotting routines
 
 if __name__ == "__main__":
@@ -682,7 +696,8 @@ if __name__ == "__main__":
     loc_on_emilles_comp = '/media/CRP6/Cosmology/'
 
     df = GAMA_catalog_w_photometry(datadir_spec=loc_on_emilles_comp,
-                                   datadir_phot=loc_on_emilles_comp)
+                                   datadir_phot=loc_on_emilles_comp,
+                                   savefile=opts.savefile)
 
     create_redshift_data(df, z_SLICS)
 
@@ -769,7 +784,8 @@ if __name__ == "__main__":
             label = np.arange(0, n_clusters, 1)
 
             for l in label:
-                create_fit_summaries(df_w_label, l, z_string, outdir=opts.outdir)
+                create_fit_summaries(df_w_label, l, z_string,
+                                     chains=20, outdir=opts.outdir)
 
         if opts.run_particle_environment:
             try_distances = distance_bins(float(z_string),
@@ -791,9 +807,12 @@ if __name__ == "__main__":
             # List of environments in the particle data
             envs_in_field = np.array(envs_in_field)
 
+            envs_in_field = np.concatenate((envs_in_field, data), axis=1)
+
             envs_df = pd.DataFrame(data=envs_in_field,
                                    index=envs_in_field[:, 0],
-                                   columns=['CATAID']+[str(i) for i in try_distances])
+                                   columns=['CATAID']+[str(i) for i in try_distances]+['RA', 'Dec']
+                                   )
 
             if opts.savefile:
                 path = os.path.join(opts.outdir, 'particle_enviros_%s.csv' % z_string)
@@ -809,7 +828,9 @@ if __name__ == "__main__":
                       'Must run with --run_particle flag to generate.')
 
         # The results are a mock catalog
-        results = get_properties(envs_df[:].values[:,1:], z_string,
+        results = get_properties(envs_df[:].values[:,1:-2], z_string,
+                                 ra=envs_df['RA'],
+                                 dec=envs_df['Dec'],
                                  indir=opts.outdir,
                                  savefiles=opts.savefile,
                                  outdir=opts.outdir)
