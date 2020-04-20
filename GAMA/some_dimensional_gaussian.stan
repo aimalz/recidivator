@@ -9,8 +9,8 @@ transformed data {
   vector[D] mu_lower;
   vector[D] mu_width;
 
-  mu_lower = [-5, -5, 14]';
-  mu_width = [15, 15, 11]';
+  mu_lower = [14, 14, 14]';
+  mu_width = [11, 11, 11]';
 }
 parameters {
   vector[D] mu_trans; //Transformed version of the mean
@@ -27,8 +27,7 @@ transformed parameters {
 model {
   //Priors
   mu_trans ~ logistic(0,1);
-  sigma[1:D-1] ~ cauchy(0,2);
-  sigma[D] ~ cauchy(0,5);
+  sigma ~ cauchy(0,5);
   L_Omega ~ lkj_corr_cholesky(1);
 
   //Cycles through rows/observations and includes their contribution to the likelihood
