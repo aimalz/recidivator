@@ -175,7 +175,7 @@ def distance_bins(z, btype, n=10, verbose=False, **kwargs):
         Input:
         z : array of redshift bins
         btype : kind of bins to use.
-        options: 'noz'       - use same angular distance over all z, n bins
+        options: 'angular'       - use same angular distance over all z, n bins
         'physical'  - use same physical coordinates over all z, n bins total.
                      low z does not have all n but a fraction
                      and high-z has all n.
@@ -185,7 +185,7 @@ def distance_bins(z, btype, n=10, verbose=False, **kwargs):
                       n number of bins per redshift.
         n : number of distances
         verbose : prints the list of distances returned.
-        kwargs: for the no redshift (noz) option, dmin and dmax specifies the
+        kwargs: for the no redshift (angular) option, dmin and dmax specifies the
         upper and lower limit of the distances.
 
         Output:
@@ -197,7 +197,7 @@ def distance_bins(z, btype, n=10, verbose=False, **kwargs):
     da = dc / (1. + z)
     ang_anchor = phys_anchors / da * 180. / np.pi
 
-    if 'noz' in btype:
+    if 'angular' in btype:
         dmin= kwargs.pop('dmin', 0.2)
         dmax = kwargs.pop('dmax', 2.5)
         try_distances = np.flip(np.geomspace(dmin, dmax, n), axis=0)
@@ -297,7 +297,7 @@ def run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
     """
         info - may change waiting
     """
-    btype = kwargs.pop('btype', 'noz')
+    btype = kwargs.pop('btype', 'angular')
     n = kwargs.pop('n', 10)
 
     try_distances = distance_bins(float(str_z), btype=btype, n=n)
@@ -483,7 +483,7 @@ def get_properties(n_r, str_redshift, ra=None, dec=None, verbose=False, indir='.
     return samp_pd
 
 ### Plotting routines
-def make_orchestra(z, zenvdf, btype='noz', savefig=True, verbose=False):
+def make_orchestra(z, zenvdf, btype='angular', savefig=True, verbose=False):
     """
         Generates the orchestra plot for a given bin type
 
@@ -596,7 +596,7 @@ def make_ang_phys_plot(z_SLICS, n=10, savefig=True):
         ax.axvline(i, c='grey', alpha=0.7)
 
     for j in np.flip(distance_bins(z_SLICS[0], n=n,
-                     btype='noz'), axis=0):
+                     btype='angular'), axis=0):
            ax.axhline(j, ls='--', c='grey', alpha=0.4)
 
     ax.set_ylabel('Angular distances', fontsize=13)
@@ -682,7 +682,7 @@ if __name__ == "__main__":
                         default=True, action='store_false')
     parser.add_argument('--outdir', default='./')
     parser.add_argument('--radii', dest='radial_binning',
-                        default='noz')
+                        default='angular')
     parser.add_argument('--bins', dest='n',
                         default=10)
     parser.add_argument('--run_env', dest='run_environment',
