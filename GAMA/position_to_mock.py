@@ -669,7 +669,60 @@ def compare_environ_curves(str_red, zenvdf, btype, n=10, num=4000, indir='./', s
         plt.savefig('environ_curve_sim_v_real_%s.pdf' % str_red)
     return
 
-## TBD: corner plot comparing GAMA to mocks
+
+def make_corner(gama, mock, str_red, savefig=True):
+    """
+        * this is a first draft and untested *
+        Generates the corner plot that compares GAMA magnitudes to the
+        mock magnitdues.
+
+        str_red: Single redshift as a string
+        gama: pandas dataframe of GAMA data
+        mock: array of mock data
+        savefig: save the figure
+
+        returns: Plot
+    """
+
+    jet = plt.cm.Spectral
+    cNorm  = colors.Normalize(vmin=0, vmax=20)
+    scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=jet)
+    color=scalarMap.to_rgba(np.arange(0, 20))
+
+    if float(str_red) < 0.3:
+        mag3 = 'lsstr'
+    else:
+        mag3 = 'lssty'
+    fig = corner.corner(np.array([gama.loc[(gama['lsstz'] > 0)
+                                              & (gama[mag3] > 0)
+                                              & (gama['lssti'] > 0)][mag3],
+                                  gama.loc[(gama['lsstz'] > 0)
+                                              & (gama[mag3] > 0)
+                                              & (gama['lssti'] > 0)]['lssti'],
+                                  gama.loc[(gama['lsstz'] > 0)
+                                              & (gama[mag3] > 0)
+                                              & (gama['lssti'] > 0)]['lsstz'],
+                                  ]).T,
+                        #labels=['r-', 'i', 'z'], show_titles=True,
+                        range = [(-1.6,1.6), (-1.6,1.6),(15,21)],
+                        color=color[1],
+                        plot_density=False,
+                        plot_contours=False,
+                        quantiles=[0.5],
+                        hist_kwargs={'density': True})
+
+    corner.corner(mock,
+                  labels=[mag3, 'lssti', 'lsstrz],
+                  show_titles=True,
+                  color=color[-3], fig=fig,
+                  plot_contours=False,
+                  plot_density=False,
+                  quantiles=[0.5],
+                  hist_kwargs={'density': True})
+
+    if savefig:
+        plt.savefig('corner_plot_%s.pdf'  % str_red)
+    return
 
 #### End Plotting routines
 
