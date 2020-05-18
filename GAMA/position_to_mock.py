@@ -9,6 +9,7 @@ import multiprocessing as mp
 
 import scipy.optimize as spo
 from scipy.stats import multivariate_normal
+from scipy.interpolate import UnivariateSpline
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -23,6 +24,7 @@ import environment as galenv
 import pystan
 
 from tslearn.clustering import TimeSeriesKMeans
+from tslearn.utils import to_time_series_dataset
 
 np.seed = 42
 
@@ -291,7 +293,7 @@ def calc_env(ind):
 ###
 
 ### Clustering function
-def run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
+def deprecated_run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
                    max_iter=5, random_state=0, savefiles=True, outdir='./',
                    **kwargs):
     """
@@ -335,16 +337,20 @@ def run_clustering(str_z, zenvdf, n_clusters=10, metric="euclidean",
     return df
 
 ### Make populations
-def create_fit_summaries(df, lbl, str_z, iter=1000, chains=4, warmup=500,
+def create_fit_summaries(df, lbl, str_z, patch, gnum,
+                         iter=1000, chains=4, warmup=500,
                          savefiles=True, outdir='./'):
     """
-        Takes in a pandas data frame with 2 colors and a magnitude and returns
-        the means and covariance matrix of the corresponding 3D Gaussian distribution.
+        Takes in a pandas data frame with 2 colors and a
+        magnitude and returns the means and covariance matrix
+        of the corresponding 3D Gaussian distribution.
 
         Input
         df :
         lbl : label
         str_z :
+        patch :
+        gnum :
 
         iter :
         chains :
@@ -357,7 +363,9 @@ def create_fit_summaries(df, lbl, str_z, iter=1000, chains=4, warmup=500,
 
         TBD: generalize per redshift bin
     """
-    df_l = df.loc[df['label']==lbl]
+    label_name = 'class_%sgroups' % gnum
+
+    df_l = df.loc[(df[label_name]==int(lbl)) & (df['patch']==int(patch))]
 
     N = len(df_l)
 
@@ -390,9 +398,11 @@ def create_fit_summaries(df, lbl, str_z, iter=1000, chains=4, warmup=500,
 
     if savefiles:
         path_dir = os.path.join(outdir, 'fit_summaries')
-        path_files = os.path.join(outdir,
-                                  'fit_summaries/summary_%s_label_%s.csv'
-                                  % (str_z, lbl))
+
+        path_files = os.path.join(path_dir,
+                                  'summary_%s_label_%s_patch_%s_groups_%s.csv'
+                                  % (str_z, lbl, patch, gnum))
+
         os.makedirs(path_dir, exist_ok=True)
         summary.to_csv(path_files)
 
@@ -400,7 +410,7 @@ def create_fit_summaries(df, lbl, str_z, iter=1000, chains=4, warmup=500,
 
 
 ## Given environment curves for particle data return galaxy properties
-def get_label(n_r, str_redshift, verbose=False, indir='./'):
+def deprecated_get_label(n_r, str_redshift, verbose=False, indir='./'):
     """
         n_r: array of number of neighbors at same radii as TS Kmeans was trained
         redshift: redshift bin to get model
@@ -421,19 +431,83 @@ def get_label(n_r, str_redshift, verbose=False, indir='./'):
 
     return predicted
 
-def get_random_sample(label, str_redshift, indir='./'):
+def assign_cluster(envcurve, patch, gnum, redshift, modeldir, btype):
+    """Assign one new environmental curve to one of the clusters.
+
+        Parameters
+        ----------
+        envcurve: list or np.array
+            Number of neighbors in each distance bin.
+            Dimensionality will be different for different redshifts.
+        patch: int
+            Patch in the sky. Possibilities are [0,1,2,3].
+        redshift: str or float
+            Redshift bin.
+        modeldir: str
+            Directory where trained models are stored.
+        gnum: int
+            Number of clusters
+        Returns
+        -------
+        group: int
+            Group to which the new environmental curve belongs.
+    """
+
+    # calculate distance bins given redshift
+    dbins = list(distance_bins(float(redshift), btype=btype))
+    dbins.reverse()
+
+    # uniform xaxis
+    dz = (dbins[-1] - dbins[0])/(len(dbins)+1)
+    x2 = np.arange(dbins[0], dbins[-1]+dz+0.0001, 0.0001)
+
+    filename = modeldir + 'classifiers/' + str(redshift) + \
+               '/' + 'model_z_' + str(redshift) + \
+               '_patch' + str(patch) + '_' + str(gnum) + 'groups.pkl'
+
+    ts = TimeSeriesKMeans()
+    loaded_model = ts.from_pickle(filename)
+
+    all_group = []
+    for env in envcurve:
+        # interpolate each environment curve
+        y = list(env)
+        y.reverse()
+
+        tck = UnivariateSpline(dbins, y,s=0)
+        intp_curv = tck(x2)
+
+        # add zero point to data
+        deriv = [env[0]]
+
+        # calculate derivative
+        for k in range(len(intp_curv) - 1):
+            deriv.append((intp_curv[k + 1] - intp_curv[k])/(x2[k + 1] - x2[k]))
+
+        group = loaded_model.predict(to_time_series_dataset(deriv))
+        all_group.append(group[0])
+
+    return all_group
+
+
+def get_random_sample(label, str_redshift, patch, group_num, indir='./'):
     """
         label: Cluster label
         str_redshift: redshift bin to get model as a string
+        patch: patch number
+        group_num: number of clusters
         indir: Where to find the fit summaries
 
         returns: random draws in an array
     """
 
     from scipy.stats import multivariate_normal
+
     rando = []
     for l in label:
-        path = os.path.join(indir, 'fit_summaries/summary_%s_label_%s.csv' %(str_redshift, label[0]))
+        path = os.path.join(indir,
+                            'fit_summaries/summary_%s_label_%s_patch_%s_groups_%s.csv'
+                            % (str_redshift, label[0], patch, group_num))
         summary = pd.read_csv(path)
         mus = summary.iloc[:3]['mean'].values
         cov = summary.iloc[3:]['mean'].values.reshape(3, 3)
@@ -441,29 +515,46 @@ def get_random_sample(label, str_redshift, indir='./'):
         rando.append(multivariate_normal.rvs(mus, cov))
     return rando
 
-def get_properties(n_r, str_redshift, ra=None, dec=None, verbose=False, indir='./',
-                   savefiles=True, outdir='./'):
+
+def get_properties(n_r, str_redshift, patch, gnum,
+                   btype='physical',
+                   ra=None, dec=None,
+                   verbose=False,
+                   modeldir='./', indir='./',
+                   savefiles=True, outdir='./', **kwargs):
     """
         Combines chosing label and generating a random sample to
            generate the mock catalog
 
         n_r: array of number of neighbors at same radii as TS Kmeans was trained
         str_redshift: redshift bin to get model as a string
+        patch: patch that the density was modeled from
+        btype:
+        ra : RA of each particle if wanted in output
+        dec : Dec of each particle if wanted in output
         verbose: print label
         indir: Where to find fit_summaries
+        modeldir: Where to find cluster models
         savefiles: Save the mock catalog
         outdir: location to save the mock catalog
 
         returns: Mock catalog
     """
 
-    l = get_label(n_r, str_redshift, verbose=verbose, indir=indir)
-    samp = get_random_sample(l, str_redshift, indir=indir)
+    #l = get_label(n_r, str_redshift, verbose=verbose, indir=indir)
+
+    l = assign_cluster(n_r, patch=patch, gnum=gnum,
+                       redshift=str_redshift,
+                       modeldir=modeldir,
+                       btype=btype)
+
+    samp = get_random_sample(l, str_redshift, patch, gnum,
+                            indir=indir)
 
     if ra is not None:
         radec = np.vstack((ra, dec)).T
         samp1 = np.concatenate((radec, samp), axis=1)
-        samp_pd = pd.DataFrame(samp1, columns=['ra', 'dec', 'mag3', 'lssti', 'lsstz'])
+        samp_pd = pd.DataFrame(samp1, columns=['ra', 'dec', 'lssti', 'lsstz', 'mag3'])
     else:
         samp_pd = pd.DataFrame(samp, columns=['lssti', 'lsstz', 'mag3'])
 
@@ -476,11 +567,14 @@ def get_properties(n_r, str_redshift, ra=None, dec=None, verbose=False, indir='.
                                 'lsstz': 'mag_z_lsst',
                                 'mag3': 'mag_y_lsst'}, inplace=True)
 
+    samp_pd['group_label'] = l
+
     if savefiles:
-        path = os.path.join(outdir, 'results_%s.csv' % str_redshift)
+        path = os.path.join(outdir, 'results_%s_patch_%s_groups_%s.csv' % (str_redshift, patch, gnum))
         samp_pd.to_csv(path, index=False)
 
     return samp_pd
+
 
 ### Plotting routines
 def make_orchestra(z, zenvdf, btype='angular', savefig=True, verbose=False):
@@ -712,7 +806,7 @@ def make_corner(gama, mock, str_red, savefig=True):
                         hist_kwargs={'density': True})
 
     corner.corner(mock,
-                  labels=[mag3, 'lssti', 'lsstrz],
+                  labels=[mag3, 'lssti', 'lsstz'],
                   show_titles=True,
                   color=color[-3], fig=fig,
                   plot_contours=False,
@@ -734,16 +828,27 @@ if __name__ == "__main__":
     parser.add_argument('--no_files', dest='savefile',
                         default=True, action='store_false')
     parser.add_argument('--outdir', default='./')
+    parser.add_argument('--modeldir',
+                        default='/media/CRP6/Cosmology/environmet_clustering/')
     parser.add_argument('--radii', dest='radial_binning',
                         default='angular')
     parser.add_argument('--bins', dest='n',
                         default=10)
+    parser.add_argument('--create_red', dest='create_redshift',
+                        default=False, action='store_true')
     parser.add_argument('--run_env', dest='run_environment',
                         default=False, action='store_true')
     parser.add_argument('--gen_summaries', dest='generate_fit_summaries',
                         default=False, action='store_true')
     parser.add_argument('--run_particle', dest='run_particle_environment',
                         default=False, action='store_true')
+    parser.add_argument('--particle_file', dest='particle_file',
+                        default='ang2deg.csv')
+    parser.add_argument('--patch', dest='patch',
+                        default=1)
+    parser.add_argument('--groups', dest='gnum',
+                        default=2)
+
     opts = parser.parse_args()
 
     loc_on_emilles_comp = '/media/CRP6/Cosmology/'
@@ -752,7 +857,8 @@ if __name__ == "__main__":
                                    datadir_phot=loc_on_emilles_comp,
                                    savefile=opts.savefile)
 
-    create_redshift_data(df, z_SLICS)
+    if opts.create_redshift:
+        create_redshift_data(df, z_SLICS)
 
     if opts.run_environment:
         z_bins = redshift_bins(z_SLICS)
@@ -823,21 +929,26 @@ if __name__ == "__main__":
         except FileNotFoundError:
             print('No enviros.csv file. Must run with --run_env flag to generate.')
 
-    if opts.run_particle_environment:
-        particles = pd.read_csv('ang2deg.csv')
-
     for z_string in ['0.042', '0.080', '0.130', '0.221', '0.317', '0.418', '0.525']:
         if opts.generate_fit_summaries:
-            df_w_label = run_clustering(z_string, zenvdf,
-                                        btype=opts.radial_binning,
-                                        outdir=opts.outdir)
 
-            # create the fit summaries for every label
-            n_clusters = 10
-            label = np.arange(0, n_clusters, 1)
+            dfr = redshift_df(z_string, zenvdf)
+            if float(z_string) < 0.3:
+                dfr = dfr.loc[(dfr['lsstr'] > 0) & (dfr['lssti'] > 0) & (dfr['lsstz'] > 0)]
+                dfr['mag3'] = dfr['lsstr']
+            else:
+                dfr = dfr.loc[(df['lssti'] > 0) & (dfr['lsstz'] > 0) & (dfr['lssty'] > 0)]
+                dfr['mag3'] = dfr['lssty']
 
-            for l in label:
+            class_path = os.path.join(opts.modeldir, 'classes/')
+            df_classified = pd.read_csv(class_path + 'z_%s_manygroups.csv' % z_string)
+
+            df_w_label = pd.merge(dfr, df_classified, on='CATAID')
+
+
+            for l in range(0, int(opts.gnum)):
                 create_fit_summaries(df_w_label, l, z_string,
+                                     patch=opts.patch, gnum=opts.gnum,
                                      chains=20, outdir=opts.outdir)
 
         if opts.run_particle_environment:
@@ -845,9 +956,10 @@ if __name__ == "__main__":
                                           btype=opts.radial_binning,
                                           n=opts.n)
 
-            nrand = 3000 ## will be updated to function by Malz
-            rand_indicies = np.random.uniform(low=0, high=len(particles), size=nrand)
-            data = particles.iloc[rand_indicies].values
+            try:
+                data = pd.read_csv(opts.particle_file, header=None, delimiter=' ').values
+            except FileNotFoundError:
+                print('Mock RA/Dec file %s not found' % opts.particle_file)
 
             (minx, maxx) = (np.floor(data[:, 0].min()), np.ceil(data[:, 0].max()))
             (miny, maxy) = (np.floor(data[:, 1].min()), np.ceil(data[:, 1].max()))
@@ -864,7 +976,7 @@ if __name__ == "__main__":
 
             envs_df = pd.DataFrame(data=envs_in_field,
                                    index=envs_in_field[:, 0],
-                                   columns=['CATAID']+[str(i) for i in try_distances]+['RA', 'Dec']
+                                   columns=['CATAID']+[str(i) for i in np.arange(1, opts.n+1)]+['RA', 'Dec']
                                    )
 
             if opts.savefile:
@@ -882,8 +994,12 @@ if __name__ == "__main__":
 
         # The results are a mock catalog
         results = get_properties(envs_df[:].values[:,1:-2], z_string,
+                                 patch=opts.patch,
+                                 gnum=opts.gnum,
+                                 btype=opts.radial_binning,
                                  ra=envs_df['RA'],
                                  dec=envs_df['Dec'],
+                                 modeldir=opts.modeldir,
                                  indir=opts.outdir,
                                  savefiles=opts.savefile,
                                  outdir=opts.outdir)
