@@ -7,7 +7,7 @@
 # How to use the parallel version?
 #
 #  First, you need to create the density estimates from an initial set of particles. E.g. :
-#     DEARmiddleAKDE(filename="/media/CRP6/Cosmology/recidivator/SLICS/particle_data/0.042cut.csv", maxPointsPerPartition=50000, nCores=35, outFileDir="/media2/CRP6/Cosmology/RDEAR_output/0042/")
+#     DEARmiddleAKDE(filename="/media/CRP6/Cosmology/recidivator/SLICS/particle_data/0.042cut.csv", maxPointsPerPartition=50000000000, nCores=1, outFileDir="/media2/CRP6/Cosmology/RDEAR_output/0042/")
 #
 #  Then, you need to generate the new particles, based on the :
 #     DEARmiddleRejSampler(inFileDir="/media/CRP6/Cosmology/particle_data/RDEAR_output/data_phys_0042/", 
