@@ -29,9 +29,9 @@ from tslearn.utils import to_time_series_dataset
 np.seed = 42
 
 ## Redshift bins from SLICS N-body sims
-z_SLICS = np.array([0.042, 0.080, 0.130, 0.221, 0.317, 0.418, 0.525, 0.640,
-                    0.764, 0.897, 1.041, 1.199, 1.372, 1.562, 1.772, 2.007,
-                    2.269, 2.565, 2.899])
+z_SLICS = np.array([0.042, 0.080, 0.130, 0.221, 0.317, 0.418, 0.525])
+#, 0.640, 0.764, 0.897, 1.041, 1.199, 1.372, 1.562, 1.772, 2.007,
+#2.269, 2.565, 2.899])
 
 # Define cosmology
 cosmo = FlatLambdaCDM(H0=69.98, Om0=0.2905, Ob0=0.0473)
@@ -73,7 +73,7 @@ def GAMA_catalog_w_photometry(datadir_spec='./', datadir_phot='./', outdir='./',
     return df
 
 
-def redshift_bins(z, z_low=0.023, z_high=3.066):
+def redshift_bins(z, z_low=0.023, z_high=3.066, nslice=None):
     """
         Input: Array of lists of redshifts matching N-body data
         Output: Redshift bins for real data
@@ -81,11 +81,20 @@ def redshift_bins(z, z_low=0.023, z_high=3.066):
         z_low: lower limit of lowest redshift bin. Default calculated for SLICS
         z_high: higher limit of highes redshift bin. Default calculated for SLICS
     """
+    if not nslice:
+        z_mids = (z[2:] + z[1:-1]) / 2.
+        z_bins = np.insert(z_mids, 0, 0.05949)
+        z_bins = np.insert(z_bins, 0, z_low)
+        z_bins = np.append(z_bins, z_high)
 
-    z_mids = (z[2:] + z[1:-1]) / 2.
-    z_bins = np.insert(z_mids, 0, 0.05949)
-    z_bins = np.insert(z_bins, 0, z_low)
-    z_bins = np.append(z_bins, z_high)
+    elif 'one_slice' in nslice:
+        z_bins = np.array([0.031915757912297296, 0.05213079888495292,
+                           0.0697375795614684, 0.09031243711212583,
+                           0.11948849618564256, 0.1405662608081968,
+                           0.20999304440408048, 0.2320708833705863,
+                           0.30541295361458104, 0.3286614228895124,
+                           0.4057415280014885, 0.43034469547157433,
+                           0.5119651965968968, 0.5381345176677429])
 
     return z_bins
 
@@ -106,31 +115,18 @@ def create_redshift_data(df, z, datadir='./', verbose=False, **kwargs):
     """
     z_low = kwargs.pop('z_low', 0.023) # default is SLICS
     z_high = kwargs.pop('z_high', 3.066) # default is SLICS
-
-    endpoints = redshift_bins(z, z_low=z_low, z_high=z_high)[1:]
+    nslice = kwargs.pop('nslice', None) # default is SLICS
 
     survey_info = np.array([str(x).split()[0][2:] for x in df['SURVEY'].values])
 
     subsamples, lens = [], []
 
-    # Create the subsample for the lowest bin
-    subsamples.append(df.loc[(df['Z'] >= z_low)
-                             & (df['Z'] < endpoints[0])
-                             & (df['NQ'] > 2)
-                             & ((df['lsstg'] > 0) |
-                                (df['lsstr'] > 0) |
-                                (df['lsstz'] > 0) |
-                                (df['lssty'] > 0))
-                             & ((survey_info == 'GAMA') |
-                                (survey_info == 'SDSS') |
-                                (survey_info == 'VVDS')
-                                )])
-    lens.append(len(subsamples[-1]))
+    if not nslice:
+        endpoints = redshift_bins(z, z_low=z_low, z_high=z_high, nslice=nslice)[1:]
 
-    # create all other subsamples
-    for i in np.arange(0, len(endpoints) -1 ):
-        subsamples.append(df.loc[(df['Z'] >= endpoints[i])
-                                 & (df['Z'] < endpoints[i+1])
+        # Create the subsample for the lowest bin
+        subsamples.append(df.loc[(df['Z'] >= z_low)
+                                 & (df['Z'] < endpoints[0])
                                  & (df['NQ'] > 2)
                                  & ((df['lsstg'] > 0) |
                                     (df['lsstr'] > 0) |
@@ -139,8 +135,40 @@ def create_redshift_data(df, z, datadir='./', verbose=False, **kwargs):
                                  & ((survey_info == 'GAMA') |
                                     (survey_info == 'SDSS') |
                                     (survey_info == 'VVDS')
-                                   )])
+                                    )])
         lens.append(len(subsamples[-1]))
+
+        # create all other subsamples
+        for i in np.arange(0, len(endpoints)-1):
+            subsamples.append(df.loc[(df['Z'] >= endpoints[i])
+                                     & (df['Z'] < endpoints[i+1])
+                                     & (df['NQ'] > 2)
+                                     & ((df['lsstg'] > 0) |
+                                        (df['lsstr'] > 0) |
+                                        (df['lsstz'] > 0) |
+                                        (df['lssty'] > 0))
+                                     & ((survey_info == 'GAMA') |
+                                        (survey_info == 'SDSS') |
+                                        (survey_info == 'VVDS')
+                                       )])
+            lens.append(len(subsamples[-1]))
+
+    elif 'one_slice' in nslice:
+        endpoints = redshift_bins(z, z_low=z_low, z_high=z_high, nslice=nslice)
+
+        for i in np.arange(0, len(endpoints), 2):
+            subsamples.append(df.loc[(df['Z'] >= endpoints[i])
+                                     & (df['Z'] < endpoints[i+1])
+                                     & (df['NQ'] > 2)
+                                     & ((df['lsstg'] > 0) |
+                                        (df['lsstr'] > 0) |
+                                        (df['lsstz'] > 0) |
+                                        (df['lssty'] > 0))
+                                     & ((survey_info == 'GAMA') |
+                                        (survey_info == 'SDSS') |
+                                        (survey_info == 'VVDS')
+                                        )])
+            lens.append(len(subsamples[-1]))
 
     if verbose:
         print('My bins have this many galaxies: ', z, lens)
@@ -832,6 +860,8 @@ if __name__ == "__main__":
                         default='/media/CRP6/Cosmology/environmet_clustering/')
     parser.add_argument('--radii', dest='radial_binning',
                         default='angular')
+    parser.add_argument('--slices', dest='nslice',
+                        default=None)
     parser.add_argument('--bins', dest='n',
                         default=10)
     parser.add_argument('--create_red', dest='create_redshift',
@@ -858,10 +888,10 @@ if __name__ == "__main__":
                                    savefile=opts.savefile)
 
     if opts.create_redshift:
-        create_redshift_data(df, z_SLICS)
+        create_redshift_data(df, z_SLICS, nslice=opts.nslice)
 
     if opts.run_environment:
-        z_bins = redshift_bins(z_SLICS)
+        z_bins = redshift_bins(z_SLICS, nslice=opts.nslice)
 
         RA_bin_ends = [0., 80., 160., 200., 360.]
         subsamples, lens = [], []
@@ -871,13 +901,24 @@ if __name__ == "__main__":
             part_subsample = df.loc[(df['RA'] >= RA_bin_ends[i]) & (df['RA'] < RA_bin_ends[i+1])]
             (minx, maxx) = (np.floor(part_subsample['RA'].min()), np.ceil(part_subsample['RA'].max()))
             (miny, maxy) = (np.floor(part_subsample['DEC'].min()), np.ceil(part_subsample['DEC'].max()))
-            for j in range(len(z_bins)-1):
-                subsample = df.loc[(df['RA'] >= RA_bin_ends[i]) & (df['RA'] < RA_bin_ends[i+1])
-                                     & (df['NQ'] > 2) & (df['Z'] >= z_bins[j]) & (df['Z'] < z_bins[j+1]),
-                                     ['CATAID', 'RA', 'DEC', 'Z', 'NQ']]
-                nn = len(subsample)
-                one_len.append(nn)
-                one_field.append(subsample)
+            if not opts.nslice:
+                for j in range(len(z_bins)-1):
+                    subsample = df.loc[(df['RA'] >= RA_bin_ends[i]) & (df['RA'] < RA_bin_ends[i+1])
+                                         & (df['NQ'] > 2) & (df['Z'] >= z_bins[j]) & (df['Z'] < z_bins[j+1]),
+                                         ['CATAID', 'RA', 'DEC', 'Z', 'NQ']]
+                    nn = len(subsample)
+                    one_len.append(nn)
+                    one_field.append(subsample)
+
+            elif 'one_slice' in opts.nslice:
+                for j in np.arange(0, len(z_bins), 2):
+                    subsample = df.loc[(df['RA'] >= RA_bin_ends[i]) & (df['RA'] < RA_bin_ends[i+1])
+                                       & (df['NQ'] > 2) & (df['Z'] >= z_bins[j]) & (df['Z'] < z_bins[j+1]),
+                                       ['CATAID', 'RA', 'DEC', 'Z', 'NQ']]
+                    nn = len(subsample)
+                    one_len.append(nn)
+                    one_field.append(subsample)
+
             subsamples.append(one_field)
             lens.append(one_len)
             field_bounds.append((minx, maxx, miny, maxy))
