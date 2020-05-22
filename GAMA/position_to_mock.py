@@ -512,7 +512,7 @@ def assign_cluster(envcurve, patch, gnum, redshift, modeldir, btype):
         for k in range(len(intp_curv) - 1):
             deriv.append((intp_curv[k + 1] - intp_curv[k])/(x2[k + 1] - x2[k]))
 
-        group = loaded_model.predict(to_time_series_dataset(deriv))
+        group = loaded_model.predict(to_time_series_dataset(deriv).reshape(1,1,len(deriv[0])))
         all_group.append(group[0])
 
     return all_group
