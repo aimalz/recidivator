@@ -115,7 +115,7 @@ def create_redshift_data(df, z, datadir='./', verbose=False, **kwargs):
     """
     z_low = kwargs.pop('z_low', 0.023) # default is SLICS
     z_high = kwargs.pop('z_high', 3.066) # default is SLICS
-    nslice = kwargs.pop('nslice', None) # default is SLICS
+    nslice = kwargs.pop('nslice', None)
 
     survey_info = np.array([str(x).split()[0][2:] for x in df['SURVEY'].values])
 
@@ -459,7 +459,7 @@ def deprecated_get_label(n_r, str_redshift, verbose=False, indir='./'):
 
     return predicted
 
-def assign_cluster(envcurve, patch, gnum, redshift, modeldir, btype):
+def assign_cluster(envcurve, patch, gnum, redshift, modeldir, btype, **kwargs):
     """Assign one new environmental curve to one of the clusters.
 
         Parameters
@@ -480,6 +480,7 @@ def assign_cluster(envcurve, patch, gnum, redshift, modeldir, btype):
         group: int
             Group to which the new environmental curve belongs.
     """
+    nslice = kwargs.pop('nslice', None)
 
     # calculate distance bins given redshift
     dbins = list(distance_bins(float(redshift), btype=btype))
@@ -489,9 +490,16 @@ def assign_cluster(envcurve, patch, gnum, redshift, modeldir, btype):
     dz = (dbins[-1] - dbins[0])/(len(dbins)+1)
     x2 = np.arange(dbins[0], dbins[-1]+dz+0.0001, 0.0001)
 
-    filename = modeldir + 'classifiers/' + str(redshift) + \
-               '/' + 'model_z_' + str(redshift) + \
-               '_patch' + str(patch) + '_' + str(gnum) + 'groups.pkl'
+    if not nslice:
+        filename = modeldir + 'classifiers/' + str(redshift) + \
+                   '/' + 'model_z_' + str(redshift) + \
+                   '_patch' + str(patch) + '_' + str(gnum) + 'groups.pkl'
+    elif 'one_slice' in nslice:
+        filename = modeldir + 'classifiers/' + str(redshift) + \
+                    '/' + 'model_z_' + str(redshift) + \
+                    '_patch' + str(patch) + '_' + str(gnum) + 'groups_oneslice.pkl'
+    else:
+        print('nslice = %s not implemented'%nslice)
 
     ts = TimeSeriesKMeans()
     loaded_model = ts.from_pickle(filename)
@@ -569,12 +577,13 @@ def get_properties(n_r, str_redshift, patch, gnum,
         returns: Mock catalog
     """
 
-    #l = get_label(n_r, str_redshift, verbose=verbose, indir=indir)
+    nslice = kwargs.pop('nslice', None)
 
     l = assign_cluster(n_r, patch=patch, gnum=gnum,
                        redshift=str_redshift,
                        modeldir=modeldir,
-                       btype=btype)
+                       btype=btype,
+                       nslice=nslice)
 
     samp = get_random_sample(l, str_redshift, patch, gnum,
                             indir=indir)
@@ -982,7 +991,12 @@ if __name__ == "__main__":
                 dfr['mag3'] = dfr['lssty']
 
             class_path = os.path.join(opts.modeldir, 'classes/')
-            df_classified = pd.read_csv(class_path + 'z_%s_manygroups.csv' % z_string)
+            if not opts.nslice:
+                df_classified = pd.read_csv(class_path + 'z_%s_manygroups.csv' % z_string)
+            elif 'one_slice' in opts.nslice:
+                df_classified = pd.read_csv(class_path + 'z_%s_manygroups_oneslice.csv' % z_string)
+            else:
+                print('nslice = %s not implemented'%opts.nslice)
 
             df_w_label = pd.merge(dfr, df_classified, on='CATAID')
 
@@ -1043,4 +1057,5 @@ if __name__ == "__main__":
                                  modeldir=opts.modeldir,
                                  indir=opts.outdir,
                                  savefiles=opts.savefile,
-                                 outdir=opts.outdir)
+                                 outdir=opts.outdir,
+                                 nslice=opts.nslice)
