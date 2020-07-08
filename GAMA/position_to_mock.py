@@ -88,13 +88,13 @@ def redshift_bins(z, z_low=0.023, z_high=3.066, nslice=None):
         z_bins = np.append(z_bins, z_high)
 
     elif 'one_slice' in nslice:
-        z_bins = np.array([0.031915757912297296, 0.05213079888495292,
-                           0.0697375795614684, 0.09031243711212583,
-                           0.11948849618564256, 0.1405662608081968,
-                           0.20999304440408048, 0.2320708833705863,
-                           0.30541295361458104, 0.3286614228895124,
-                           0.4057415280014885, 0.43034469547157433,
-                           0.5119651965968968, 0.5381345176677429])
+        z_bins = np.array([0.03181514844912428086, 0.05223234654386613857,
+                           0.06963520543886111969, 0.09041581682763454031,
+                           0.1193836509129378581, 0.1406722022874906664,
+                           0.2098832940160801908, 0.2321819198334741374,
+                           0.3052974536882714363, 0.3287784135727995216,
+                           0.4056193724415583235, 0.4304685796114068874,
+                           0.5118353541924083316, 0.5382663747585300085])
 
     return z_bins
 
@@ -241,7 +241,7 @@ def distance_bins(z, btype, n=10, verbose=False, **kwargs):
 
     if 'changez' in btype:
         try_distances = np.flip(np.geomspace(min(ang_anchor.value),
-                                             min(2.5, max(ang_anchor.value)),
+                                             min(1.0, max(ang_anchor.value)),
                                              n), axis=0)
 
     if verbose:
@@ -866,21 +866,28 @@ if __name__ == "__main__":
                         default=True, action='store_false')
     parser.add_argument('--outdir', default='./')
     parser.add_argument('--modeldir',
-                        default='/media/CRP6/Cosmology/environmet_clustering/')
+                        default='/media/CRP6/Cosmology/environmet_clustering/',
+                        help='Location of ML model for GAMA environment curve clutersting')
     parser.add_argument('--radii', dest='radial_binning',
-                        default='angular')
+                        default='angular',
+                        help='')
     parser.add_argument('--slices', dest='nslice',
-                        default=None)
+                        default=None,
+                        help='')
     parser.add_argument('--bins', dest='n',
                         default=10)
     parser.add_argument('--create_red', dest='create_redshift',
-                        default=False, action='store_true')
+                        default=False, action='store_true',
+                        help='')
     parser.add_argument('--run_env', dest='run_environment',
-                        default=False, action='store_true')
+                        default=False, action='store_true',
+                        help='run_env for GAMA environmental curves')
     parser.add_argument('--gen_summaries', dest='generate_fit_summaries',
-                        default=False, action='store_true')
+                        default=False, action='store_true',
+                        help='Generate 3D Gaussian Stan fits to GAMA curves')
     parser.add_argument('--run_particle', dest='run_particle_environment',
-                        default=False, action='store_true')
+                        default=False, action='store_true',
+                        help='run_particle for Mock Particle environmental curves')
     parser.add_argument('--particle_file', dest='particle_file',
                         default='ang2deg.csv')
     parser.add_argument('--patch', dest='patch',
