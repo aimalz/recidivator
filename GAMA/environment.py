@@ -3,7 +3,7 @@ import numpy as np
 def nn_finder(data, point, radius):
     """
     Extracts coordinates that fall within a certain radius around a point.
-    
+
     Inputs:
     -------
     data : array-like
@@ -11,49 +11,54 @@ def nn_finder(data, point, radius):
         values are in the first column, right ascension values in the second.
         T his is the dataset of coordinates among which we want to find the
         ones that fall within a certain radius using the great-circle distance.
-           
+
     point : array-like
         Cooridnate tuple with the declination value as the first entry and
         the right ascension value as the second entry. This is the point
         around which we are looking for coordinateś within a radius.
-            
+
     radius : float or int
         The radius around the provided point in which extracted coordinates
         have to fall in order to be returned as valid coordinates to return.
-        
+
     Returns:
     --------
     radius_data : array-like
         The cut-down dataset, meaning only the coordinates of points in the
         provided dataset that fall within the given radius.
-        
+
     Note:
     ----
     The whole things runs in around 0.7 seconds per point, with a dataset of
     100,000 coordinates. For a speed-up, it is embarrassingly parallelizable.
     It should also be tested on the real dataset to make sure that everything
-    works as intended. Batteries not included.  
+    works as intended. Batteries not included.
     """
+
+    # Our data is given in [RA, Dec] not [Dec, RA]
+    data[:, 0], data[:, 1] = data[:, 1], data[:, 0].copy()
+    point[0], point[1] = point[1], point[0].copy()
+
     # Specify the cutoff values for the pre-cutting
     x_cut_lower = point[0] - radius
     x_cut_upper = point[0] + radius
     y_cut_lower = point[1] - radius
     y_cut_upper = point[1] + radius
     # Find the indices of eligible points across dimensions
-    eligible_points = np.where((data[:, 0] >= x_cut_lower) 
+    eligible_points = np.where((data[:, 0] >= x_cut_lower)
                                & (data[:, 0] <= x_cut_upper)
                                & (data[:, 1] >= y_cut_lower)
                                & (data[:, 1] <= y_cut_upper))[0]
     # Cut based on the radius boundaries in dimension 1
     cut_data = data[eligible_points, :]
     # Extract the points within the specified radius
-    distances = np.asarray([haversine(point, cut_data[i]) 
+    distances = np.asarray([haversine(point, cut_data[i])
                             for i in range(0, len(cut_data))])
     radius_data = cut_data[np.where(distances <= radius)[0]]
     # Return the extracted points
     return radius_data
 
-def haversine(point_1, 
+def haversine(point_1,
               point_2):
 
     """
@@ -68,13 +73,13 @@ def haversine(point_1,
     point_2 : array_like
         Cooridnate tuple with the declination value as the first entry and
         the right ascension value as the second entry.
-        
+
     Returns:
     --------
     haversine_distance : float
         The great-circle distance between the two provided points using the
         haversine formula. Better than the Euclidean distance in this case.
-        
+
     Note:
     -----
     The value 'circle_radius' has to be set, in kilometres. The one used
