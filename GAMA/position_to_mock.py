@@ -73,7 +73,7 @@ def GAMA_catalog_w_photometry(datadir_spec='./', datadir_phot='./', outdir='./',
     return df
 
 
-def redshift_bins(z, z_low=0.023, z_high=3.066, nslice=None):
+def redshift_bins(z, z_low=0.023, z_high=3.066, patch=None):
     """
         Input: Array of lists of redshifts matching N-body data
         Output: Redshift bins for real data
@@ -81,20 +81,33 @@ def redshift_bins(z, z_low=0.023, z_high=3.066, nslice=None):
         z_low: lower limit of lowest redshift bin. Default calculated for SLICS
         z_high: higher limit of highes redshift bin. Default calculated for SLICS
     """
-    if not nslice:
+    if not patch:
         z_mids = (z[2:] + z[1:-1]) / 2.
         z_bins = np.insert(z_mids, 0, 0.05949)
         z_bins = np.insert(z_bins, 0, z_low)
         z_bins = np.append(z_bins, z_high)
 
-    elif 'one_slice' in nslice:
-        z_bins = np.array([0.03181514844912428086, 0.05223234654386613857,
-                           0.06963520543886111969, 0.09041581682763454031,
-                           0.1193836509129378581, 0.1406722022874906664,
-                           0.2098832940160801908, 0.2321819198334741374,
-                           0.3052974536882714363, 0.3287784135727995216,
-                           0.4056193724415583235, 0.4304685796114068874,
-                           0.5118353541924083316, 0.5382663747585300085])
+    elif 'G02' in patch:
+        z_bins = np.array([0.0, 0.1625,
+                           0.1625, 0.2534,
+                           0.2534, 0.3748,
+                           0.3748, 2.2263])
+    elif 'G09' in patch:
+        z_bins = np.array([0.0, 0.1642,
+                           0.1642, 0.2703,
+                           0.2703, 2.238])
+    elif 'G12' in patch:
+        z_bins = np.array([0.0, 0.1282,
+                           0.1282, 0.2174,
+                           0.2174, 3.7875])
+    elif 'G15' in patch:
+        z_bins = np.array([0.0, 0.1178,
+                           0.1178, 0.1506,
+                           0.1506, 0.201,
+                           0.201, 0.2606,
+                           0.2606, 0.3108,
+                           0.3108, 0.4107,
+                           0.4107, 3.0594])
 
     return z_bins
 
@@ -115,14 +128,14 @@ def create_redshift_data(df, z, datadir='./', verbose=False, **kwargs):
     """
     z_low = kwargs.pop('z_low', 0.023) # default is SLICS
     z_high = kwargs.pop('z_high', 3.066) # default is SLICS
-    nslice = kwargs.pop('nslice', None)
+    patch = kwargs.pop('patch', None)
 
     survey_info = np.array([str(x).split()[0][2:] for x in df['SURVEY'].values])
 
     subsamples, lens = [], []
 
-    if not nslice:
-        endpoints = redshift_bins(z, z_low=z_low, z_high=z_high, nslice=nslice)[1:]
+    if not patch:
+        endpoints = redshift_bins(z, z_low=z_low, z_high=z_high)[1:]
 
         # Create the subsample for the lowest bin
         subsamples.append(df.loc[(df['Z'] >= z_low)
@@ -153,8 +166,8 @@ def create_redshift_data(df, z, datadir='./', verbose=False, **kwargs):
                                        )])
             lens.append(len(subsamples[-1]))
 
-    elif 'one_slice' in nslice:
-        endpoints = redshift_bins(z, z_low=z_low, z_high=z_high, nslice=nslice)
+    else:
+        endpoints = redshift_bins(z, z_low=z_low, z_high=z_high, patch=patch)
 
         for i in np.arange(0, len(endpoints), 2):
             subsamples.append(df.loc[(df['Z'] >= endpoints[i])
@@ -174,15 +187,24 @@ def create_redshift_data(df, z, datadir='./', verbose=False, **kwargs):
         print('My bins have this many galaxies: ', z, lens)
 
     # Save the subsamples per redshift to be called later
-    os.makedirs(os.path.join(datadir, 'SpecObjPhot'), exist_ok=True)
-    for i, arr in enumerate(subsamples):
-        path = os.path.join(datadir, 'SpecObjPhot/SpecObjPhot_%5.3f.csv' % z[i])
-        arr.to_csv(path)
+    if patch is not None:
+        os.makedirs(os.path.join(datadir, 'SpecObjPhot_%s'%patch), exist_ok=True)
+        for i, arr in enumerate(subsamples):
+            path = os.path.join(datadir, 'SpecObjPhot_%s/SpecObjPhot_%5.3f.csv' % (patch, z[i]))
+            arr.to_csv(path)
+    else:
+        os.makedirs(os.path.join(datadir, 'SpecObjPhot'), exist_ok=True)
+        for i, arr in enumerate(subsamples):
+            path = os.path.join(datadir, 'SpecObjPhot/SpecObjPhot_%5.3f.csv' % z[i])
+            arr.to_csv(path)
 
     return
 
-def redshift_df(str_z, zenvdf, datadir='./'):
-    path = os.path.join(datadir, 'SpecObjPhot/SpecObjPhot*.csv')
+def redshift_df(str_z, zenvdf, datadir='./', patch=None):
+    if not patch:
+        path = os.path.join(datadir, 'SpecObjPhot/SpecObjPhot*.csv')
+    else:
+        path = os.path.join(datadir, 'SpecObjPhot_%s/SpecObjPhot*.csv' % patch)
     r_files = glob.glob(path)
     f = [s for s in r_files if str_z in s]
     phodf = pd.read_csv(f[0])
@@ -480,7 +502,6 @@ def assign_cluster(envcurve, patch, gnum, redshift, modeldir, btype, **kwargs):
         group: int
             Group to which the new environmental curve belongs.
     """
-    nslice = kwargs.pop('nslice', None)
 
     # calculate distance bins given redshift
     dbins = list(distance_bins(float(redshift), btype=btype))
@@ -490,16 +511,14 @@ def assign_cluster(envcurve, patch, gnum, redshift, modeldir, btype, **kwargs):
     dz = (dbins[-1] - dbins[0])/(len(dbins)+1)
     x2 = np.arange(dbins[0], dbins[-1]+dz+0.0001, 0.0001)
 
-    if not nslice:
+    if not patch:
         filename = modeldir + 'classifiers/' + str(redshift) + \
                    '/' + 'model_z_' + str(redshift) + \
                    '_patch' + str(patch) + '_' + str(gnum) + 'groups.pkl'
-    elif 'one_slice' in nslice:
+    elif 'G15' in patch:
         filename = modeldir + 'classifiers/' + str(redshift) + \
                     '/' + 'model_z_' + str(redshift) + \
-                    '_patch' + str(patch) + '_' + str(gnum) + 'groups_oneslice.pkl'
-    else:
-        print('nslice = %s not implemented'%nslice)
+                    '_patch' + str(patch) + '_' + str(gnum) + 'groups.pkl'
 
     ts = TimeSeriesKMeans()
     loaded_model = ts.from_pickle(filename)
@@ -577,13 +596,10 @@ def get_properties(n_r, str_redshift, patch, gnum,
         returns: Mock catalog
     """
 
-    nslice = kwargs.pop('nslice', None)
-
     l = assign_cluster(n_r, patch=patch, gnum=gnum,
                        redshift=str_redshift,
                        modeldir=modeldir,
-                       btype=btype,
-                       nslice=nslice)
+                       btype=btype)
 
     samp = get_random_sample(l, str_redshift, patch, gnum,
                             indir=indir)
@@ -871,9 +887,6 @@ if __name__ == "__main__":
     parser.add_argument('--radii', dest='radial_binning',
                         default='angular',
                         help='')
-    parser.add_argument('--slices', dest='nslice',
-                        default=None,
-                        help='')
     parser.add_argument('--bins', dest='n',
                         default=10)
     parser.add_argument('--create_red', dest='create_redshift',
@@ -891,7 +904,7 @@ if __name__ == "__main__":
     parser.add_argument('--particle_file', dest='particle_file',
                         default='ang2deg.csv')
     parser.add_argument('--patch', dest='patch',
-                        default=1)
+                        default='G15')
     parser.add_argument('--groups', dest='gnum',
                         default=2)
 
@@ -904,10 +917,10 @@ if __name__ == "__main__":
                                    savefile=opts.savefile)
 
     if opts.create_redshift:
-        create_redshift_data(df, z_SLICS, nslice=opts.nslice)
+        create_redshift_data(df, z_SLICS, patch=opts.patch)
 
     if opts.run_environment:
-        z_bins = redshift_bins(z_SLICS, nslice=opts.nslice)
+        z_bins = redshift_bins(z_SLICS, patch=opts.patch)
 
         RA_bin_ends = [0., 80., 160., 200., 360.]
         subsamples, lens = [], []
@@ -917,7 +930,7 @@ if __name__ == "__main__":
             part_subsample = df.loc[(df['RA'] >= RA_bin_ends[i]) & (df['RA'] < RA_bin_ends[i+1])]
             (minx, maxx) = (np.floor(part_subsample['RA'].min()), np.ceil(part_subsample['RA'].max()))
             (miny, maxy) = (np.floor(part_subsample['DEC'].min()), np.ceil(part_subsample['DEC'].max()))
-            if not opts.nslice:
+            if not opts.patch:
                 for j in range(len(z_bins)-1):
                     subsample = df.loc[(df['RA'] >= RA_bin_ends[i]) & (df['RA'] < RA_bin_ends[i+1])
                                          & (df['NQ'] > 2) & (df['Z'] >= z_bins[j]) & (df['Z'] < z_bins[j+1]),
@@ -926,7 +939,7 @@ if __name__ == "__main__":
                     one_len.append(nn)
                     one_field.append(subsample)
 
-            elif 'one_slice' in opts.nslice:
+            elif opts.patch is not None:
                 for j in np.arange(0, len(z_bins), 2):
                     subsample = df.loc[(df['RA'] >= RA_bin_ends[i]) & (df['RA'] < RA_bin_ends[i+1])
                                        & (df['NQ'] > 2) & (df['Z'] >= z_bins[j]) & (df['Z'] < z_bins[j+1]),
@@ -989,7 +1002,7 @@ if __name__ == "__main__":
     for z_string in ['0.042', '0.080', '0.130', '0.221', '0.317', '0.418', '0.525']:
         if opts.generate_fit_summaries:
 
-            dfr = redshift_df(z_string, zenvdf)
+            dfr = redshift_df(z_string, zenvdf, patch=opts.patch)
             if float(z_string) < 0.3:
                 dfr = dfr.loc[(dfr['lsstr'] > 0) & (dfr['lssti'] > 0) & (dfr['lsstz'] > 0)]
                 dfr['mag3'] = dfr['lsstr']
@@ -998,12 +1011,12 @@ if __name__ == "__main__":
                 dfr['mag3'] = dfr['lssty']
 
             class_path = os.path.join(opts.modeldir, 'classes/')
-            if not opts.nslice:
+            if not opts.patch:
                 df_classified = pd.read_csv(class_path + 'z_%s_manygroups.csv' % z_string)
-            elif 'one_slice' in opts.nslice:
-                df_classified = pd.read_csv(class_path + 'z_%s_manygroups_oneslice.csv' % z_string)
+            elif 'G15' in opts.patch:
+                df_classified = pd.read_csv(class_path + 'z_%s_manygroups.csv' % z_string)
             else:
-                print('nslice = %s not implemented'%opts.nslice)
+                print('patch = %s not implemented'%opts.patch)
 
             df_w_label = pd.merge(dfr, df_classified, on='CATAID')
 
@@ -1019,7 +1032,8 @@ if __name__ == "__main__":
                                           n=opts.n)
 
             try:
-                data = pd.read_csv(opts.particle_file, header=None, delimiter=' ').values
+                data1 = pd.read_csv(opts.particle_file, header=None, delimiter=' ').values
+                data = data1[:,:-1]
             except FileNotFoundError:
                 print('Mock RA/Dec file %s not found' % opts.particle_file)
 
@@ -1034,11 +1048,11 @@ if __name__ == "__main__":
             # List of environments in the particle data
             envs_in_field = np.array(envs_in_field)
 
-            envs_in_field = np.concatenate((envs_in_field, data), axis=1)
+            envs_in_field = np.concatenate((envs_in_field, data1), axis=1)
 
             envs_df = pd.DataFrame(data=envs_in_field,
                                    index=envs_in_field[:, 0],
-                                   columns=['CATAID']+[str(i) for i in np.arange(1, opts.n+1)]+['RA', 'Dec']
+                                   columns=['CATAID']+[str(i) for i in np.arange(1, opts.n+1)]+['RA', 'Dec', 'z']
                                    )
 
             if opts.savefile:
@@ -1064,5 +1078,4 @@ if __name__ == "__main__":
                                  modeldir=opts.modeldir,
                                  indir=opts.outdir,
                                  savefiles=opts.savefile,
-                                 outdir=opts.outdir,
-                                 nslice=opts.nslice)
+                                 outdir=opts.outdir)
