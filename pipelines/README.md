@@ -60,3 +60,4 @@ Output is a file name `results_LOS42_G15_10groups_15PCs.csv`.
 
 ## Current errors:
 - Labels are missing from file being passed to `create_fit_summaries` which is the output of `assign_groups`. Code needs to be added to ensure a column named "label" is passed to `create_fit_summaries`.
+- Catalogs are too Gaussian. Need to add GMM to STAN model. This means we will also need to update the code (`create_fit_summaries`, `get_random_sample`) to draw new data directly from the STAN model instead of using STAN to fit for the multivariate Gaussian properties and using python to draw samples.
